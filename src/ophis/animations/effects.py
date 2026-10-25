@@ -676,8 +676,9 @@ def default_params(name: str) -> Params:
         if setting.kind == "slider":
             setattr(params, setting.key, setting.default)
         elif setting.kind == "percent":
-            percent = float(setting.default) / 100.0
-            value = setting.actual_low + percent * (setting.actual_high - setting.actual_low)
+            percent = float(setting.default)
+            span = setting.actual_high - setting.actual_low
+            value = setting.actual_low + (percent - 1.0) / 99.0 * span
             setattr(params, setting.key, round(value, 2))
         elif setting.kind in ("switch",):
             setattr(params, setting.key, bool(setting.default))

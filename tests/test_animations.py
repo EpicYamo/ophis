@@ -58,7 +58,7 @@ class EffectTests(unittest.TestCase):
     def test_reference_defaults(self):
         wave = default_params("wave")
         self.assertEqual(wave.angle, 0)
-        self.assertAlmostEqual(wave.speed, 3.95, places=2)
+        self.assertAlmostEqual(wave.speed, 3.87, places=2)
         breathing = default_params("breathing")
         # Percentages of the range that actually works: 0.2-8 speed and
         # 8-120 smoothness, not the reference's 1-40 and 2-150.
@@ -75,7 +75,7 @@ class EffectTests(unittest.TestCase):
         )
         wheel = default_params("wheel")
         self.assertFalse(wheel.reverse)
-        self.assertAlmostEqual(wheel.speed, 3.95, places=2)
+        self.assertAlmostEqual(wheel.speed, 3.87, places=2)
         flame = default_params("flame")
         self.assertEqual((flame.speed, flame.smooth), (5, 8))
         rain = default_params("rain")
