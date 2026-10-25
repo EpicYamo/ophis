@@ -115,9 +115,6 @@ CLI (argparse)         ─┴─►  RazerDevice  ─►  HidrawTransport  ─�
 - The fan figure shown is the setpoint, not a measurement: the EC exposes no
   tachometer, only the target speed. A fixed speed switches the laptop to the
   Custom profile, because balanced and gaming ignore the setpoint.
-- Effects other than static are sent with the effect id only. Synapse also
-  sends colour and speed parameters, so the firmware falls back to its own
-  defaults for those.
 
 ## Safety
 

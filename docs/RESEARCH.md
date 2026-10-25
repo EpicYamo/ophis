@@ -100,7 +100,7 @@ the device reported success **and** the new value came back.
 | fan, balanced/gaming | mode `0`, `manual_fan=1`, setpoint `35`–`50` | setpoint stored and readable via `0x81`, `manual_fan` reports `1`, **fans do not move** |
 | fan, custom | mode `4`, `manual_fan=1`, setpoint `50` to both zones | fans audibly spin up; `0x81` reads back `50` |
 | fan, back to automatic | mode `4`, `manual_fan=0` | fans return to the firmware curve |
-| lighting | static `FF5500`, static `00FF00`, breathing, spectrum | accepted; the firmware has no query for the current effect |
+| lighting | static, breathing (single), wave, reactive, starlight, spectrum, each with the parameters from OpenRazer's layouts | every effect visibly ran; there is no query for the current effect |
 | logo LED | `03/03` brightness `FF`, then `03/00` `01 04 01`, transaction `FF` | logo lights up; state reads back `1` via `03/80` |
 
 Fan transitions are gradual: 5000 → 3500 takes about 5–6 seconds, and the fans

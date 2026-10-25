@@ -142,7 +142,7 @@ The UI range is 50–80%. `0x80 | 80` means "enabled, stop at 80%".
 | Set logo effect | `0x02` | 3 | `VARSTORE`, `LOGO_LED`, `0x02` (breathing) |
 | Set brightness | `0x03` | 3 | `VARSTORE`, `target`, `0..255` |
 | Get brightness | `0x83` | 3 | `VARSTORE`, `target`, `00` → `args[2]` |
-| Set standard effect | `0x0A` | 80 | `effect_id`, params… |
+| Set standard effect | `0x0A` | 1-9 | `effect_id`, params (see below) |
 | Set custom frame | `0x0B` | 52 | `0xFF`, `row`, `00`, `0x0F`, 45 colour bytes at offset 7 |
 
 Constants: `NOSTORE = 0x00`, `VARSTORE = 0x01`, `LOGO_LED = 0x04`,
@@ -151,7 +151,26 @@ Constants: `NOSTORE = 0x00`, `VARSTORE = 0x01`, `LOGO_LED = 0x04`,
 Effect ids: `0x00` off, `0x01` wave, `0x02` reactive, `0x03` breathing,
 `0x04` spectrum, `0x05` custom frame, `0x06` static, `0x19` starlight.
 
-Static colour is `effect_id = 0x06` followed by `R`, `G`, `B`.
+#### Keyboard effects
+
+`data_size` is the real argument count. A padded 80-byte payload is accepted
+too, which is why it worked before the layouts were known, but there is no
+reason to send it.
+
+| Effect | `data_size` | Arguments |
+| --- | --- | --- |
+| off | 1 | `00` |
+| wave | 2 | `01`, direction (`01` or `02`) |
+| reactive | 5 | `02`, speed `1..4`, `R G B` |
+| breathing, one colour | 5 | `03 01 R G B` |
+| breathing, random | 2 | `03 03` |
+| spectrum | 1 | `04` |
+| static | 4 | `06 R G B` |
+| starlight, one colour | 9 | `19 01 speed 1..3 R G B 00 00 00` |
+| starlight, random | 3 | `19 03 speed 1..3` |
+
+All of them were sent to the 2022 Blade 14 and produced the expected animation.
+The mapping of wave direction `01`/`02` to physical left/right is not confirmed.
 
 #### The logo LED is special
 

@@ -74,7 +74,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     effect = target.add_parser("effect", help="keyboard lighting effect")
     effect.add_argument("value", choices=list(EFFECT_NAMES))
-    effect.add_argument("--color", default=None, help="RRGGBB, used by the static effect")
+    effect.add_argument("--color", default=None, help="RRGGBB, used by static, breathing, reactive and starlight")
+    effect.add_argument("--speed", type=int, default=2, choices=range(1, 5), help="1 slow to 4 fast")
+    effect.add_argument("--direction", default="left", choices=["left", "right"], help="wave direction")
 
     return parser
 
@@ -196,15 +198,16 @@ def main(argv: list[str] | None = None) -> int:
             backend.set_logo(LOGO_NAMES[args.value])
         elif args.target == "effect":
             effect = EFFECT_NAMES[args.value]
-            if effect == p.Effect.STATIC:
+            colour = None
+            if args.color:
                 try:
-                    red, green, blue = parse_color(args.color or "FFFFFF")
+                    colour = parse_color(args.color)
                 except ValueError as exc:
                     print(f"error: {exc}", file=sys.stderr)
                     return 2
-                backend.set_color(red, green, blue)
-            else:
-                backend.set_effect(effect)
+            backend.set_effect(
+                effect, colour, args.speed, 1 if args.direction == "left" else 2
+            )
 
         emit(snapshot(backend), args.json)
         return 0

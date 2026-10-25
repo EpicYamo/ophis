@@ -22,7 +22,13 @@ class Backend(Protocol):
     def set_power_mode(self, mode: int) -> None: ...
     def set_fan_rpm(self, rpm: int) -> None: ...
     def set_brightness(self, value: int) -> None: ...
-    def set_effect(self, effect: int) -> None: ...
+    def set_effect(
+        self,
+        effect: int,
+        colour: tuple[int, int, int] | None = None,
+        speed: int = 2,
+        direction: int = 1,
+    ) -> None: ...
     def set_color(self, red: int, green: int, blue: int) -> None: ...
     def set_bho(self, enabled: bool, threshold: int) -> None: ...
     def set_logo(self, mode: int) -> None: ...
@@ -47,8 +53,18 @@ class MockBackend:
     def set_brightness(self, value: int) -> None:
         self.state.brightness = value
 
-    def set_effect(self, effect: int) -> None:
+    def set_effect(
+        self,
+        effect: int,
+        colour: tuple[int, int, int] | None = None,
+        speed: int = 2,
+        direction: int = 1,
+    ) -> None:
         self.state.extra["effect"] = int(effect)
+        self.state.extra["speed"] = speed
+        self.state.extra["direction"] = direction
+        if colour is not None:
+            self.state.extra["color"] = colour
 
     def set_color(self, red: int, green: int, blue: int) -> None:
         self.state.extra["color"] = (red, green, blue)
@@ -121,8 +137,14 @@ class DeviceBackend:
     def set_brightness(self, value: int) -> None:
         self.device.set_brightness(value)
 
-    def set_effect(self, effect: int) -> None:
-        self.device.set_effect(effect)
+    def set_effect(
+        self,
+        effect: int,
+        colour: tuple[int, int, int] | None = None,
+        speed: int = 2,
+        direction: int = 1,
+    ) -> None:
+        self.device.set_effect(effect, colour, speed, direction)
 
     def set_color(self, red: int, green: int, blue: int) -> None:
         self.device.set_static_color(red, green, blue)

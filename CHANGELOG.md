@@ -32,6 +32,9 @@ All notable changes to this project are documented here. The format follows
 - the lid logo never lit up: logo commands need transaction id `0xFF`, the LED
   brightness set first, and the state command `0x03/0x00`; the state getter is
   `0x03/0x80` (the `0x82` variant always answers zero)
+- keyboard effects were sent with the effect id alone, so breathing, reactive
+  and starlight fell back to firmware defaults; each effect now carries its
+  colour, speed and direction with the argument count it actually needs
 
 ### Notes
 

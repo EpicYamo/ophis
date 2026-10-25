@@ -225,9 +225,46 @@ class RazerDevice:
             )
         self.state.logo = mode
 
-    def set_effect(self, effect: int, params: bytes = b"") -> None:
-        args = bytes([int(effect)]) + params
-        self._call(p.Class.LED, p.Cmd.LED_SET_STANDARD_EFFECT, 80, args)
+    def set_effect(
+        self,
+        effect: int,
+        colour: tuple[int, int, int] | None = None,
+        speed: int = 2,
+        direction: int = 1,
+    ) -> None:
+        """Apply a keyboard effect with the parameters that effect needs.
+
+        The EC wants the real argument count in `data_size`; a full 80-byte
+        payload is accepted too, but there is no reason to send it.
+        """
+        effect = int(effect)
+        red, green, blue = colour or (255, 255, 255)
+        speed = max(1, min(4, int(speed)))
+
+        if effect == p.Effect.STATIC:
+            args = [p.Effect.STATIC, red, green, blue]
+        elif effect == p.Effect.BREATHING:
+            # 0x01 = single colour, 0x03 = random
+            args = [p.Effect.BREATHING, 0x01, red, green, blue]
+        elif effect == p.Effect.WAVE:
+            args = [p.Effect.WAVE, 1 if int(direction) == 1 else 2]
+        elif effect == p.Effect.REACTIVE:
+            args = [p.Effect.REACTIVE, min(speed, 4), red, green, blue]
+        elif effect == p.Effect.STARLIGHT:
+            args = [
+                p.Effect.STARLIGHT, 0x01, min(speed, 3),
+                red, green, blue, 0x00, 0x00, 0x00,
+            ]
+        elif effect == p.Effect.SPECTRUM:
+            args = [p.Effect.SPECTRUM]
+        else:
+            args = [effect]
+
+        self._call(p.Class.LED, p.Cmd.LED_SET_STANDARD_EFFECT, len(args), bytes(args))
+        self.state.extra["effect"] = effect
+        if effect in (p.Effect.STATIC, p.Effect.BREATHING, p.Effect.REACTIVE,
+                      p.Effect.STARLIGHT):
+            self.state.extra["color"] = (red, green, blue)
 
     def set_static_color(self, red: int, green: int, blue: int) -> None:
-        self.set_effect(p.Effect.STATIC, bytes([red, green, blue]))
+        self.set_effect(p.Effect.STATIC, (red, green, blue))

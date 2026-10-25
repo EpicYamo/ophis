@@ -108,6 +108,23 @@ class DeviceTests(unittest.TestCase):
         self.assertEqual(self.last().command_id, p.Cmd.LED_GET_STATE)
         self.assertEqual(self.last().transaction_id, p.LOGO_TRANSACTION_ID)
 
+    def test_effect_argument_layouts(self):
+        cases = [
+            (p.Effect.STATIC, (10, 20, 30), 2, 1, [0x06, 10, 20, 30]),
+            (p.Effect.BREATHING, (10, 20, 30), 2, 1, [0x03, 0x01, 10, 20, 30]),
+            (p.Effect.WAVE, None, 2, 2, [0x01, 0x02]),
+            (p.Effect.REACTIVE, (10, 20, 30), 3, 1, [0x02, 0x03, 10, 20, 30]),
+            (p.Effect.STARLIGHT, (10, 20, 30), 3, 1,
+             [0x19, 0x01, 0x03, 10, 20, 30, 0, 0, 0]),
+            (p.Effect.SPECTRUM, None, 2, 1, [0x04]),
+            (p.Effect.OFF, None, 2, 1, [0x00]),
+        ]
+        for effect, colour, speed, direction, expected in cases:
+            self.transport.requests.clear()
+            self.device.set_effect(effect, colour, speed, direction)
+            self.assertEqual(self.last().data_size, len(expected), effect.name)
+            self.assertEqual(self.last().arguments[: len(expected)], bytes(expected), effect.name)
+
     def test_missing_feature_raises(self):
         device = RazerDevice(self.transport, features={"logo"})
         with self.assertRaises(p.NotSupported):

@@ -135,13 +135,28 @@ class ControlWindow(Adw.ApplicationWindow):
         self.effect_row.connect("notify::selected", self._on_effect_changed)
         group.add(self.effect_row)
 
-        color_row = Adw.ActionRow(title="Colour", subtitle="Used by the Static effect")
+        color_row = Adw.ActionRow(
+            title="Colour", subtitle="Used by static, breathing, reactive and starlight"
+        )
         self.color_button = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog())
         self.color_button.set_valign(Gtk.Align.CENTER)
         self.color_button.connect("notify::rgba", self._on_color_changed)
         color_row.add_suffix(self.color_button)
         color_row.set_activatable_widget(self.color_button)
         group.add(color_row)
+
+        self.speed_row = self._combo(
+            "Speed", "Reactive and starlight", ["Slow", "Normal", "Fast"]
+        )
+        self.speed_row.connect("notify::selected", self._on_effect_option_changed)
+        group.add(self.speed_row)
+
+        self.direction_row = self._combo(
+            "Wave direction", "Left to right, or right to left",
+            ["Left to right", "Right to left"],
+        )
+        self.direction_row.connect("notify::selected", self._on_effect_option_changed)
+        group.add(self.direction_row)
 
         self.brightness = Adw.SpinRow.new_with_range(0, 255, 5)
         self.brightness.set_title("Brightness")
@@ -198,6 +213,8 @@ class ControlWindow(Adw.ApplicationWindow):
             effect_values = [int(value) for _, value in EFFECTS]
             if effect in effect_values:
                 self.effect_row.set_selected(effect_values.index(effect))
+            self.speed_row.set_selected(max(0, min(2, self.state.extra.get("speed", 2) - 1)))
+            self.direction_row.set_selected(0 if self.state.extra.get("direction", 1) == 1 else 1)
 
             color = self.state.extra.get("color", (255, 255, 255))
             rgba = Gdk.RGBA()
@@ -266,24 +283,36 @@ class ControlWindow(Adw.ApplicationWindow):
         self._apply(self.backend.set_fan_rpm, value)
         self.state.fan_rpm = value
 
+    def _effect_choice(self) -> int:
+        return int(EFFECTS[self.effect_row.get_selected()][1])
+
+    def _effect_colour(self) -> tuple[int, int, int]:
+        rgba = self.color_button.get_rgba()
+        return (int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255))
+
+    def _apply_effect(self) -> None:
+        effect = self._effect_choice()
+        colour = self._effect_colour()
+        speed = self.speed_row.get_selected() + 1
+        direction = 1 if self.direction_row.get_selected() == 0 else 2
+        self.backend.set_effect(effect, colour, speed, direction)
+        self.state.extra["effect"] = effect
+        self.state.extra["color"] = colour
+
     def _on_effect_changed(self, *_args) -> None:
         if self._syncing:
             return
-        effect = int(EFFECTS[self.effect_row.get_selected()][1])
-        self._apply(self.backend.set_effect, effect)
-        self.state.extra["effect"] = effect
+        self._apply(self._apply_effect)
+
+    def _on_effect_option_changed(self, *_args) -> None:
+        if self._syncing:
+            return
+        self._apply(self._apply_effect)
 
     def _on_color_changed(self, *_args) -> None:
         if self._syncing:
             return
-        rgba = self.color_button.get_rgba()
-        red = int(rgba.red * 255)
-        green = int(rgba.green * 255)
-        blue = int(rgba.blue * 255)
-        self._apply(self.backend.set_color, red, green, blue)
-        self.state.extra["color"] = (red, green, blue)
-        self.state.extra["effect"] = int(p.Effect.STATIC)
-        self._sync_from_state()
+        self._apply(self._apply_effect)
 
     def _on_brightness_changed(self, *_args) -> None:
         if self._syncing:
