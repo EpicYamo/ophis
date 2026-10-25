@@ -299,7 +299,9 @@ class Lightning(Effect):
     name = "lightning"
     label = "Lightning"
     SETTINGS = (
-        Setting("speed", "Speed", "slider", 1, 10, 1, 5),
+        # Above a speed of 6 the bolt skips whole rows and stops looking like
+        # lightning, so the slider is a percentage of 0.5-6.
+        Setting("speed", "Speed", "percent", 1, 100, 1, 82, (), 0.5, 6.0),
         Setting("smooth", "Smoothness", "slider", 1, 20, 1, 10),
         Setting("width", "Strike width", "slider", 1, 4, 1, 2),
         Setting("concurrent", "Concurrent strikes", "slider", 1, 4, 1, 1),

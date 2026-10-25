@@ -69,9 +69,9 @@ class EffectTests(unittest.TestCase):
         sparkle = default_params("sparkle")
         self.assertEqual((sparkle.speed, sparkle.density), (5, 8))
         lightning = default_params("lightning")
+        self.assertAlmostEqual(lightning.speed, 5.0, places=2)
         self.assertEqual(
-            (lightning.speed, lightning.smooth, lightning.width, lightning.concurrent),
-            (5, 10, 2, 1),
+            (lightning.smooth, lightning.width, lightning.concurrent), (10, 2, 1)
         )
         wheel = default_params("wheel")
         self.assertFalse(wheel.reverse)
@@ -92,7 +92,8 @@ class EffectTests(unittest.TestCase):
                     ("slider", "percent", "switch", "choice", "colour", "palette", "zone_colours"),
                 )
 
-    def test_wave_and_wheel_speeds_stay_at_or_below_twelve(self):
+    def test_animation_speeds_respect_their_ceilings(self):
+        self.assertLessEqual(default_params("lightning").speed, 6.0)
         for name in ("wave", "wheel"):
             params = default_params(name)
             self.assertLessEqual(params.speed, 12.0)
