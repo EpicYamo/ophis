@@ -266,5 +266,25 @@ class RazerDevice:
                       p.Effect.STARLIGHT):
             self.state.extra["color"] = (red, green, blue)
 
+    # -- per-key frames ----------------------------------------------------
+    def write_frame(self, rows: list[list[tuple[int, int, int]]]) -> None:
+        """Paint the whole 6x16 matrix. Each row is one feature report."""
+        for index, row in enumerate(rows):
+            args = [0xFF, index, 0x00, 0x0F]
+            for red, green, blue in row:
+                args += [red, green, blue]
+            self._call(
+                p.Class.LED, p.Cmd.LED_SET_CUSTOM_FRAME, len(args), bytes(args)
+            )
+
+    def activate_custom_frame(self) -> None:
+        """Show what was written by `write_frame`."""
+        self._call(
+            p.Class.LED,
+            p.Cmd.LED_SET_STANDARD_EFFECT,
+            2,
+            bytes([p.Effect.CUSTOM_FRAME, 0x00]),
+        )
+
     def set_static_color(self, red: int, green: int, blue: int) -> None:
         self.set_effect(p.Effect.STATIC, (red, green, blue))
