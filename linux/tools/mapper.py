@@ -6,7 +6,7 @@ physical key is which. This tool lights one cell at a time. Press the key that
 lit up (its hardware keycode is recorded) or click it on the board, whichever
 is easier.
 
-    PYTHONPATH=src python3 tools/mapper.py
+    PYTHONPATH=src python3 linux/tools/mapper.py
 
 Progress is saved after every key, so you can stop and continue later.
 """
@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
 
 import gi
 

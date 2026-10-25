@@ -179,7 +179,7 @@ class LightingPage(Gtk.Box):
 
         self.map_hint = Gtk.Label(
             label="Key positions are not mapped yet: run "
-            "`PYTHONPATH=src python3 tools/mapper.py` once to get the real keyboard layout.",
+            "`PYTHONPATH=src python3 linux/tools/mapper.py` once to get the real keyboard layout.",
             xalign=0,
             wrap=True,
         )

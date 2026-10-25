@@ -57,8 +57,7 @@ layout on this machine:
 4. Only then implemented write commands, one at a time, with clamping.
 
 The read-only probe used for step 1–2 is kept at
-`~/Desktop/tools/probe/probe.py` (outside the repository, because it needs root
-and is not part of the product).
+`linux/tools/probe.py` (it needs root and is not part of the product).
 
 ### Result, 2026-10-25
 

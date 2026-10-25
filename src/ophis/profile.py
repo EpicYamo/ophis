@@ -54,6 +54,9 @@ DEFAULT: dict[str, Any] = {
 
 
 def config_path() -> Path:
+    if os.name == "nt":
+        base = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+        return Path(base) / "ophis" / "profile.json"
     base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
     return Path(base) / "ophis" / "profile.json"
 

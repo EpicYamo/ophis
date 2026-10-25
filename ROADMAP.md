@@ -84,3 +84,18 @@ back from the device, not assumed:
 - [ ] Display refresh-rate switching
 - [ ] MUX / Optimus state (research first, see `docs/RESEARCH.md`)
 - [ ] GPU power limits through `nvidia-smi`
+
+## M7 — Windows
+
+- [x] Windows HID transport with an exclusive handle and a clear lock error
+- [x] Shared protocol, device operations, effects and profile
+- [x] PySide6 window with Performance, Cooling, Lighting, Battery and Settings
+- [x] Custom/device lighting switch, per-effect panels, paint mode and the
+      animation engine on a Qt timer
+- [x] Native tray, single-instance pipe, autostart through the current user's
+      `Run` key, and profile under `%APPDATA%`
+- [x] Portable build in CI with `Ophis.exe` and `Ophis-cli.exe --probe`
+- [ ] Verify the Windows build on the target laptop's Windows boot
+- [ ] Signed installer (the portable zip is unsigned for now)
+- [ ] Windows CPU/NVMe temperature fallbacks on models where ACPI exposes no
+      thermal zone

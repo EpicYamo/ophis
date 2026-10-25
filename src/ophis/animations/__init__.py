@@ -14,7 +14,6 @@ from .effects import (  # noqa: F401
     hue_colour,
     scale,
 )
-from .engine import AnimationEngine  # noqa: F401
 
 __all__ = [
     "ANIMATIONS",
@@ -33,3 +32,16 @@ __all__ = [
     "hue_colour",
     "scale",
 ]
+
+
+def __getattr__(name: str):
+    """Import the GTK engine only when a caller asks for it.
+
+    The Windows build has no PyGObject, and importing `animations` must stay
+    platform-neutral.
+    """
+    if name == "AnimationEngine":
+        from .engine import AnimationEngine
+
+        return AnimationEngine
+    raise AttributeError(name)

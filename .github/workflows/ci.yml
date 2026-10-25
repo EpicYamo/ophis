@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build the package
-        run: bash packaging/build-deb.sh
+        run: make deb
 
       - name: Inspect the package
         run: |
@@ -48,14 +48,64 @@ jobs:
           name: ophis-deb
           path: dist/*.deb
 
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install PySide6 pyinstaller
+
+      - name: Unit tests
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests -v
+
+      - name: Byte-compile
+        run: python -m compileall -q src
+
+      - name: Build the portable app
+        run: powershell -ExecutionPolicy Bypass -File windows/build.ps1
+
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          & .\dist\Ophis\Ophis-cli.exe --version
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & .\dist\Ophis\Ophis-cli.exe --probe
+          if ($LASTEXITCODE -notin 0, 1) { exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ophis-windows
+          path: dist/Ophis-windows.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [deb, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
       - name: Publish the release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.deb
+          files: |
+            artifacts/ophis-deb/*.deb
+            artifacts/ophis-windows/*.zip
           generate_release_notes: true
           body: |
-            Debian package for Ophis.
+            Ophis for Linux and Windows.
+
+            Linux:
 
             ```bash
             sudo apt install ./ophis_*.deb
@@ -63,3 +113,10 @@ jobs:
 
             The package installs the commands, the desktop entry, the icon and
             the udev rule for the Razer HID interface.
+
+            Windows:
+
+            Extract `Ophis-windows.zip`, then run `Ophis.exe`. Close Razer
+            Synapse first: Ophis opens the controller exclusively so the two
+            cannot write the same lighting state. `Ophis-cli.exe --probe`
+            prints the lock and device state when something looks wrong.

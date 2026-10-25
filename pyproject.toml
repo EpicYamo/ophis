@@ -4,34 +4,44 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ophis"
-version = "0.1.0"
-description = "Linux control center for the Razer Blade 14 (2022): performance profiles, fan curves, per-key RGB and charge limit"
+version = "0.3.0"
+description = "Control centre for the Razer Blade 14 (2022): performance profiles, fan curves, per-key RGB and charge limit on Linux and Windows"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Arda Aycan" }]
-keywords = ["razer", "blade", "linux", "fan-control", "rgb", "hidraw", "gtk4"]
+keywords = ["razer", "blade", "linux", "windows", "fan-control", "rgb", "hid", "gtk4", "qt"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Environment :: X11 Applications :: GTK",
+  "Environment :: Win32 (MS Windows)",
   "Intended Audience :: End Users/Desktop",
   "License :: OSI Approved :: MIT License",
   "Operating System :: POSIX :: Linux",
+  "Operating System :: Microsoft :: Windows",
   "Programming Language :: Python :: 3",
   "Topic :: System :: Hardware",
 ]
 
+[project.optional-dependencies]
+windows = ["PySide6>=6.6"]
+
 [project.urls]
 Homepage = "https://github.com/EpicYamo/ophis"
-Issues = "https://github.com/EpicYamo/ophis/issues"
+Issues = "https://github.com/EpicYamo/ophis"
 
 [project.scripts]
 ophis = "ophis.cli:main"
 ophis-gui = "ophis.gui.app:main"
 ophis-tray = "ophis.tray:main"
+ophis-windows = "ophis.windows.app:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"ophis.gui" = ["style.css"]
+"ophis.windows" = ["theme.qss"]

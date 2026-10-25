@@ -1,10 +1,11 @@
 # Ophis
 
-A Linux control centre for the **Razer Blade 14 (2022)**, `RZ09-0427`
+A control centre for the **Razer Blade 14 (2022)**, `RZ09-0427`
 (USB `1532:028C`): performance profiles, fan control and fan curves, per-key
-RGB with host-rendered animations, the lid logo, and the battery charge limit.
+RGB with host-rendered animations, the lid logo, and the battery charge limit —
+on **Linux and Windows**.
 
-No kernel module, no Secure Boot changes, no Razer account, no daemon.
+No kernel module, no driver, no daemon, no Razer account on either platform.
 
 Built from scratch in Python against a protocol that is not documented anywhere.
 Every command in this repository was sent to a real laptop and its effect
@@ -14,9 +15,14 @@ confirmed, including the three protocol mistakes described further down.
 
 ## Why this project exists
 
-Synapse does not run on Linux. The community projects that cover this hardware
-are either archived, cover only part of it, or need an out-of-tree kernel module
-that fights Secure Boot:
+Synapse does not run on Linux. On Windows it works, but only as a background
+stack of services that keeps the controller busy and has no reason to run while
+you are gaming. Ophis talks to the same vendor HID collection directly, needs no
+service, and on Windows opens that collection **exclusively** so Razer software
+cannot apply its own lighting over yours.
+
+The community projects that cover this hardware are either archived, cover only
+part of it, or need an out-of-tree kernel module that fights Secure Boot:
 
 | Project | RGB | Fan | Power | Charge limit | State |
 | --- | --- | --- | --- | --- | --- |
@@ -36,7 +42,8 @@ acknowledged, and silently ignored.
   boost levels.
 - **Fan control** — automatic, a fixed 3500–5000 RPM target, or a temperature
   driven curve that runs while the app is open.
-- **Temperatures** — CPU, GPU and NVMe, read from the kernel sensors.
+- **Temperatures** — CPU, GPU and NVMe. Linux uses `hwmon`; Windows uses NVML
+  and ACPI/storage CIM classes, without installing a sensor driver.
 - **Lighting** — nine host-rendered effects ported from
   [Better RGB](https://github.com/EpicYamo/Better-RGB-for-Tongfang-ITE8291):
   breathing, wave with an adjustable angle, sparkle, wheel, lightning, flame,
@@ -52,45 +59,48 @@ acknowledged, and silently ignored.
 - **Battery care** — charge limit between 50% and 80%, stored in the controller
   and therefore independent of the operating system.
 - **Tray application** — runs in the background, click to open, right click to
-  restore defaults or quit. With the tray available the window's close button
-  hides it instead of quitting; quitting restores the firmware defaults.
-- **Normal window behaviour** — title bar, drag to move, menu with minimize,
-  restore defaults and quit. Ctrl+C in a terminal goes through the same
-  shutdown path, so the keyboard is never left in a half-applied state.
-- **Profile file** — one JSON file, applied at login if you want it.
-- **CLI** — every feature, with `--json` for scripting.
+  restore defaults or quit. Closing the window hides it when the tray is
+  available; quitting restores the firmware defaults.
+- **Normal window behaviour** — title bar, drag to move, menu with restore
+  defaults and quit. Ctrl+C in a terminal goes through the same shutdown path,
+  so the keyboard is never left in a half-applied state.
+- **Profile file** — one JSON file per platform (`~/.config/ophis/profile.json`
+  on Linux, `%APPDATA%\ophis\profile.json` on Windows), applied at login if you
+  want it.
+- **CLI on Linux** — every feature, with `--json` for scripting. On Windows the
+  UI is the main interface, with `Ophis-cli.exe --probe` for diagnostics.
 
 ## Install
 
-### Debian package
+### Linux: Debian package
 
 Download `ophis_<version>_all.deb` from the
 [releases page](https://github.com/EpicYamo/ophis/releases) and install it:
 
 ```bash
-sudo apt install ./ophis_0.2.0_all.deb
+sudo apt install ./ophis_0.3.0_all.deb
 ```
 
 It installs `ophis`, `ophis-gui` and `ophis-tray`, the desktop entry, the icon
 and the udev rule, and pulls in the GTK/PyGObject dependencies. Build it
 yourself with `make deb`.
 
-### From a checkout
+### Linux: from a checkout
 
 ```bash
 git clone https://github.com/EpicYamo/ophis.git
 cd ophis
 
 # Let your desktop session talk to the control interface (one sudo, no reboot)
-sudo cp data/99-razer-hidraw.rules /etc/udev/rules.d/
+sudo cp linux/data/99-razer-hidraw.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 sudo udevadm trigger --action=change --subsystem-match=hidraw
 
 # Optional: a proper tray icon on GNOME
 sudo apt install gir1.2-ayatanaappindicator3-0.1
 
-make test        # 48 unit tests, no hardware needed
-make run         # GUI
+make test        # 50 unit tests, no hardware needed
+make run         # GTK4 GUI
 make tray        # GUI in the background with a tray icon
 make preview     # GUI with a fake device
 ```
@@ -104,9 +114,43 @@ Without the udev rule, the CLI still works with `sudo`:
 sudo PYTHONPATH=src python3 -m ophis.cli info
 ```
 
+### Windows: portable build
+
+Download **`Ophis-windows.zip`** from the
+[releases page](https://github.com/EpicYamo/ophis/releases), extract it
+anywhere and run **`Ophis.exe`**.
+
+Before the first run, quit **Razer Synapse** (and remove it from startup if you
+do not need it for firmware updates). Ophis opens the controller exclusively;
+if another program already holds it, the window explains that instead of
+silently competing with it. `Ophis-cli.exe --probe` prints the lock state,
+device details and any Razer processes that are still running.
+
+Ophis needs **no administrator rights** and installs **no driver**. It is a
+normal user-mode HID application. The executable is unsigned, so Windows
+SmartScreen may ask for confirmation the first time.
+
+### Windows: from source
+
+```powershell
+git clone https://github.com/EpicYamo/ophis.git
+cd ophis
+py -3 -m pip install -e ".[windows]"
+py -3 -m ophis.windows.app
+```
+
+Build the portable folder and zip:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File windows/build.ps1
+```
+
+Output: `dist/Ophis/Ophis.exe`, `dist/Ophis/Ophis-cli.exe` and
+`dist/Ophis-windows.zip`.
+
 ## Usage
 
-From the checkout (no installation needed):
+From the Linux checkout (no installation needed):
 
 ```bash
 PYTHONPATH=src python3 -m ophis.cli info
@@ -120,11 +164,6 @@ Install the commands and a desktop entry (no root, everything under
 make install         # ophis, ophis-gui, ophis-tray + app-grid icon
 make uninstall       # removes them again
 ```
-
-After that `ophis info` works from any directory and **Ophis** appears in the
-application grid; it opens the window with the tray already running, so the
-close button hides it instead of quitting. `make install` bakes the checkout
-path into the wrappers, so re-run it if you move the repository.
 
 ```bash
 ophis set power gaming
@@ -147,19 +186,45 @@ ophis temp --json
 Every command accepts `--json` and `--preview`. A fixed fan speed takes five or
 six seconds to settle — that is the hardware, not the app.
 
+On Windows, `Ophis.exe` opens the window and adds a tray icon. Autostart adds a
+value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, so it does not
+need administrator rights. `Ophis.exe --tray` starts hidden;
+`Ophis.exe --show` starts with the window visible.
+
+## Exclusive device access
+
+The controller has one vendor HID collection, and two writers are one writer too
+many. Ophis therefore:
+
+- opens the collection with **share mode 0** on Windows, so no other process can
+  open it while Ophis is running;
+- never falls back to a shared handle. If the open fails, the UI says which
+  program is in the way and offers **Retry**;
+- serialises every command through one transport. There is no parallel writer
+  in the app, and the animation engine stops if the controller falls behind;
+- holds a single-instance named pipe before it touches the device, so launching
+  Ophis twice cannot create two writers.
+
+This is the same model that worked for the BetterRGB project: the other
+application may stay open for features that use a different channel, but its
+RGB path cannot write the controller while Ophis owns it. In practice, keep
+Synapse closed; Ophis does not need it.
+
 ## The tray application
 
-`ophis-tray` starts hidden and puts an icon in the top bar. Clicking opens the
-window; right click offers **Open**, **Restore default settings** and **Quit**.
-Quitting restores the defaults (balanced, automatic fans, plain white keyboard)
-but leaves the charge limit alone, because that is a battery-health setting and
-not decoration.
+On Linux, `ophis-tray` starts hidden and puts an icon in the top bar. On GNOME
+the icon needs the Ubuntu AppIndicators extension (installed by default on
+Ubuntu) and `libayatana-appindicator3`. The indicator itself lives in a small
+GTK3 child process (`ophis.tray_helper`), because the extension only understands
+`com.canonical.dbusmenu`; GTK3 cannot share a process with GTK4.
 
-On GNOME the icon needs the Ubuntu AppIndicators extension (installed by
-default on Ubuntu) and the GTK3 library above. The indicator itself lives in a
-small GTK3 child process (`ophis.tray_helper`), because the extension only
-understands `com.canonical.dbusmenu`; GTK3 cannot share a process with GTK4.
-Without the library the app runs normally and prints a note on stderr.
+On Windows the tray is native (`QSystemTrayIcon`), so there is no helper process
+and no extra package.
+
+Clicking the icon opens the window; right click offers **Open**, **Restore
+default settings** and **Quit**. Quitting restores the defaults (balanced,
+automatic fans, plain white keyboard) but leaves the charge limit alone, because
+that is a battery-health setting and not decoration.
 
 ## Animations
 
@@ -195,23 +260,27 @@ static colour rather than hammering the EC.
 
 ## How it works
 
+The protocol, device operations, effects and profile are shared. Only the
+transport and the window are platform-specific:
+
 ```
-GTK4 window ─┐
-CLI          ─┴─► backend ─► RazerDevice ─► HidrawTransport ─► /dev/hidrawN
-                    │        protocol.py      feature reports   1532:028C,
-                    │                                           usage page 0xFF00
-                    ├─ profile.py   one JSON file
-                    ├─ thermal.py   kernel sensors
-                    └─ animations/  frame engine
+Linux:   GTK4 window ─┐                    ┌─ HidrawTransport ─► /dev/hidrawN
+CLI      ─────────────┼─► backend ─► RazerDevice ─► protocol.py
+Windows: Qt window  ──┘                    └─ WindowsHidTransport ─► hid.dll
 ```
 
 - `protocol.py` — the 91-byte packet codec and command constants.
-- `transport.py` — `HIDIOCSFEATURE` / `HIDIOCGFEATURE`, plus a fake transport.
+- `transport.py` — the interface plus a fake transport for tests and previews.
+- `transport_linux.py` — `HIDIOCSFEATURE` / `HIDIOCGFEATURE`.
+- `transport_windows.py` — `SetupAPI` + `HidD_SetFeature` / `HidD_GetFeature`
+  on an exclusive handle.
 - `device.py` — semantic operations: profiles, fan, frames, logo, charge limit.
-- `profile.py` — saved state, no daemon.
-- `thermal.py` — temperatures for the fan curve.
+- `profile.py` — saved state, no daemon; platform-specific config path.
+- `thermal.py` / `sysinfo.py` — Linux sensors and battery.
+- `windows/sensors.py` — Windows temperatures, battery and Razer-process probe.
 - `animations/` — host-rendered effects.
-- `gui/` — the window, the matrix preview and the curve editor.
+- `linux/` — GTK4 window, tray helper, packaging, udev rule, mapper.
+- `windows/` — Qt window, tray, packaging, icons.
 
 ## What the protocol taught us
 
@@ -237,6 +306,11 @@ The protocol is undocumented vendor behaviour. Ophis sends only the commands
 Synapse sends, clamps values to the ranges observed on this model, and stops an
 animation if the controller falls behind. Even so: run it at your own risk.
 
+On Windows, Ophis deliberately avoids kernel drivers and sensor libraries such
+as WinRing0. That keeps it user-mode and avoids the driver category that
+anti-cheat software tends to block. If a temperature source is unavailable, the
+UI says so; it does not install a driver to get one.
+
 The charge limit is a controller setting, not an OS one. It survives reboots and
 operating system changes, which is why quitting Ophis does not reset it.
 
@@ -248,20 +322,38 @@ operating system changes, which is why quitting Ophis does not reset it.
   (the last keys are Del and the power button, which does have an LED).
 - The fan curve runs only while the app is open. The controller keeps the last
   speed afterwards.
+- On Windows, host animations pause when the Lighting page is not visible; the
+  controller keeps the last frame. This avoids a 24 fps writer running in the
+  background while you game. Device effects run inside the keyboard either way.
 - Hardware-wave direction (`01`/`02`) is not mapped to physical left/right.
 - Logo breathing is sent, but the firmware calls it unsupported.
 - Only `1532:028C` is a target. Other Blade models advertise different feature
   sets and fan ranges; the code is structured so adding one is a table entry.
+- Windows CPU and NVMe temperatures depend on what the firmware exposes through
+  ACPI and storage counters. GPU temperature comes from `nvidia-smi`. If the
+  CPU reading is missing, the fan curve follows the GPU instead.
+- Razer firmware updates, macros and per-app profiles remain Synapse features.
+  Ophis replaces the control surface, not the updater.
+- The Windows executable is unsigned. SmartScreen may warn on first launch.
 
 ## Development
 
 ```bash
-make test     # 48 unit tests, no device required
-make preview  # GUI against a fake device
+make test     # 50 unit tests, no device required
+make preview  # Linux GUI against a fake device
 ```
 
-Layout: `src/ophis/` (code), `tests/` (unit tests), `docs/` (protocol and
-research notes), `data/` (udev rule and desktop entry).
+Windows:
+
+```powershell
+py -3 -m pip install -e ".[windows]"
+py -3 -m ophis.windows.app --preview
+powershell -ExecutionPolicy Bypass -File windows/build.ps1
+```
+
+Layout: `src/ophis/` (shared core), `src/ophis/gui/` (GTK4),
+`src/ophis/windows/` (Qt and Windows transport), `linux/` (Linux packaging,
+udev, mapper), `windows/` (PyInstaller recipe), `tests/`, `docs/`.
 
 ## Author
 

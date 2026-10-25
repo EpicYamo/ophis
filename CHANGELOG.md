@@ -4,13 +4,33 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-10-26
 
 ### Added
 
+- Windows build: a PySide6 window with the same pages, tray, single-instance
+  pipe, autostart through `HKCU\...\Run`, and a portable `Ophis-windows.zip`
+  built by CI
+- Windows HID transport using `SetupAPI` and `HidD_SetFeature` /
+  `HidD_GetFeature`; the controller is opened with share mode 0 and there is no
+  shared fallback, so a second writer gets a clear error instead of corrupting
+  the controller state
+- Windows temperatures (NVML for the GPU, ACPI/storage CIM for CPU and NVMe)
+  and a Razer-process probe, without installing a sensor driver
 - Lighting has a custom/device switch: the device side lists the effects the
   controller renders itself, with only the settings the firmware accepts
   (colour, speed, wave direction)
+- shared core: the effect engine and the transport are platform-specific, while
+  protocol, device operations, effects and profile are shared
+- CI builds and tests both platforms and attaches the `.deb` and the Windows zip
+  to tagged releases
+
+### Changed
+
+- repository layout split into `linux/` and `windows/`; the root `Makefile`
+  still delegates `make deb`, `make run` and the other Linux targets
+- the GTK engine is imported lazily, so `ophis.animations` works without
+  PyGObject on Windows
 
 ### Fixed
 
@@ -18,6 +38,8 @@ All notable changes to this project are documented here. The format follows
   now a list whose entries apply immediately
 - the lid logo could report "on" with zero brightness after a controller reset;
   the state is re-applied once when the page opens
+- connecting to a missing device no longer raises out of `DeviceBackend`; the
+  backend stays in a disconnected state and can reconnect from the UI
 
 ## [0.2.0] - 2026-10-25
 

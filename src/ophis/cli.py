@@ -1,7 +1,7 @@
 """Command line interface: ``ophis``.
 
 Requires write access to the hidraw control node: run it as root, or install
-``data/99-razer-hidraw.rules`` so your desktop session gets access.
+``linux/data/99-razer-hidraw.rules`` so your desktop session gets access.
 """
 
 from __future__ import annotations

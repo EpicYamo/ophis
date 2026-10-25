@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Build a self-contained Debian package from the checkout.
 #
-#   bash packaging/build-deb.sh
+#   bash linux/packaging/build-deb.sh
 #
 # Output: dist/ophis_<version>_all.deb
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/ophis/__init__.py)
 if [ -z "$VERSION" ]; then
@@ -50,10 +50,10 @@ write_wrapper "$ROOT/usr/bin/ophis-gui" "ophis.gui.app" '--tray --show "$@"'
 write_wrapper "$ROOT/usr/bin/ophis-tray" "ophis.tray" '"$@"'
 
 sed 's|^Exec=.*|Exec=ophis-gui|; s|^Icon=.*|Icon=io.github.epicyamo.Ophis|' \
-  data/ophis.desktop > "$ROOT/usr/share/applications/io.github.epicyamo.Ophis.desktop"
+  linux/data/ophis.desktop > "$ROOT/usr/share/applications/io.github.epicyamo.Ophis.desktop"
 cp data/io.github.epicyamo.Ophis.svg \
    "$ROOT/usr/share/icons/hicolor/scalable/apps/io.github.epicyamo.Ophis.svg"
-cp data/99-razer-hidraw.rules "$ROOT/usr/lib/udev/rules.d/99-razer-hidraw.rules"
+cp linux/data/99-razer-hidraw.rules "$ROOT/usr/lib/udev/rules.d/99-razer-hidraw.rules"
 
 cp README.md CHANGELOG.md LICENSE "$ROOT/usr/share/doc/ophis/"
 gzip -9 -n -c CHANGELOG.md > "$ROOT/usr/share/doc/ophis/changelog.gz"

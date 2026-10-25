@@ -2,7 +2,7 @@
 
 `MockBackend` runs without hardware (development, screenshots, CI).
 `DeviceBackend` wraps the real device; it needs write access to the hidraw
-node (root, or the udev rule from ``data/``).
+node (root, or the udev rule from ``linux/data/``).
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from typing import Protocol
 
 from . import protocol as p
 from .device import DeviceState, RazerDevice
-from .transport import HidrawTransport
+from .transport import Transport, default_transport
 
 
 class Backend(Protocol):
@@ -92,23 +92,48 @@ class MockBackend:
 class DeviceBackend:
     """Real hardware. On failure, ``detail`` explains why."""
 
-    def __init__(self, transport: HidrawTransport | None = None) -> None:
-        self.transport = transport or HidrawTransport()
-        self.device = RazerDevice(self.transport)
-        self.state = self.device.state
+    def __init__(self, transport: Transport | None = None) -> None:
+        self.transport = transport
+        self.device: RazerDevice | None = None
+        self.state = DeviceState()
         self.connected = False
         self.detail = ""
+        self._connect()
+
+    def _connect(self) -> None:
         try:
+            if self.transport is None:
+                self.transport = default_transport()
+            if self.device is None:
+                self.device = RazerDevice(self.transport)
+            else:
+                self.device.transport = self.transport
+            self.device.state = self.state
             self.transport.open()
             self.connected = True
             self.detail = f"Connected: {self.device.model}"
             self.refresh()
         except (OSError, p.RazerError) as exc:
+            self.connected = False
             self.detail = f"Not connected: {exc}"
+
+    def reconnect(self) -> None:
+        """Drop the handle and try again; useful after Razer Synapse closes."""
+        self.close()
+        self.transport = None
+        self.device = None
+        self._connect()
+
+    def _device(self) -> RazerDevice:
+        if not self.connected:
+            self._connect()
+        if self.device is None or not self.connected:
+            raise p.RazerError(self.detail or "device is not connected")
+        return self.device
 
     def refresh(self) -> None:
         """Read the current settings; unsupported queries are skipped."""
-        if not self.connected:
+        if not self.connected or self.device is None:
             return
         try:
             mode, manual = self.device.get_power_state(1)
@@ -137,13 +162,13 @@ class DeviceBackend:
                 pass
 
     def set_power_mode(self, mode: int) -> None:
-        self.device.set_power_mode(mode, self.state.cpu_boost, self.state.gpu_boost)
+        self._device().set_power_mode(mode, self.state.cpu_boost, self.state.gpu_boost)
 
     def set_fan_rpm(self, rpm: int) -> None:
-        self.device.set_fan_rpm(rpm)
+        self._device().set_fan_rpm(rpm)
 
     def set_brightness(self, value: int) -> None:
-        self.device.set_brightness(value)
+        self._device().set_brightness(value)
 
     def set_effect(
         self,
@@ -152,25 +177,30 @@ class DeviceBackend:
         speed: int = 2,
         direction: int = 1,
     ) -> None:
-        self.device.set_effect(effect, colour, speed, direction)
+        self._device().set_effect(effect, colour, speed, direction)
 
     def set_color(self, red: int, green: int, blue: int) -> None:
-        self.device.set_static_color(red, green, blue)
+        self._device().set_static_color(red, green, blue)
 
     def set_bho(self, enabled: bool, threshold: int) -> None:
-        self.device.set_bho(enabled, threshold)
+        self._device().set_bho(enabled, threshold)
 
     def write_frame(self, rows) -> None:
-        self.device.write_frame(rows)
+        self._device().write_frame(rows)
 
     def activate_custom_frame(self) -> None:
-        self.device.activate_custom_frame()
+        self._device().activate_custom_frame()
 
     def set_logo(self, mode: int) -> None:
-        self.device.set_logo(mode)
+        self._device().set_logo(mode)
 
     def close(self) -> None:
-        self.transport.close()
+        if self.transport is not None:
+            try:
+                self.transport.close()
+            except OSError:
+                pass
+        self.connected = False
 
 
 def open_backend(preview: bool = False) -> Backend:

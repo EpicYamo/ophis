@@ -5,20 +5,24 @@ physical key is which. Keys are identified by their X11 keycode, which is
 layout independent (the German legends come from the layout, not the code), so
 the map survives a language change.
 
-``tools/mapper.py`` fills the map by lighting one cell at a time and asking the
+``linux/tools/mapper.py`` fills the map by lighting one cell at a time and asking the
 owner to press the key that lit up.
 """
 
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 def _default_map_path() -> Path:
-    """Find the key map in a checkout and in an installed package."""
+    """Find the key map in a checkout, an installed package, or a frozen app."""
     here = Path(__file__).resolve()
+    frozen = Path(getattr(sys, "_MEIPASS", "")) / "data" / "keymap_blade14.json"
     candidates = [
+        frozen,                                                        # PyInstaller
+        here.parent / "data" / "keymap_blade14.json",                 # ophis/data
         here.parent.parent / "data" / "keymap_blade14.json",          # /usr/lib/ophis/ophis -> /usr/lib/ophis/data
         here.parent.parent.parent / "data" / "keymap_blade14.json",   # src/ophis -> <repo>/data
     ]

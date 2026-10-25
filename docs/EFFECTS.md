@@ -73,7 +73,7 @@ engine stops and leaves a static colour instead of hammering the controller.
 ## The key map
 
 `data/keymap_blade14.json` maps X11 keycodes to matrix cells, produced with
-`tools/mapper.py`: the tool lights one cell, the owner presses the key that lit
+`linux/tools/mapper.py`: the tool lights one cell, the owner presses the key that lit
 up, and the keycode is recorded. Column 0 has no physical keys, and the space
 bar has no LED on this model, so neither appears in the map.
 
