@@ -1,11 +1,12 @@
 PYTHON ?= python3
 export PYTHONPATH := src
 
-.PHONY: help test run preview cli udev clean
+.PHONY: help test run tray preview cli udev clean
 
 help:
 	@echo "make test     - run the unit tests (no hardware needed)"
 	@echo "make run      - start the GUI against the real device"
+	@echo "make tray     - start in the background with a tray icon"
 	@echo "make preview  - start the GUI with a fake device"
 	@echo "make cli      - print device information"
 	@echo "make udev     - install the udev rule (sudo)"
@@ -16,6 +17,9 @@ test:
 
 run:
 	$(PYTHON) -m ophis.gui.app
+
+tray:
+	$(PYTHON) -m ophis.tray
 
 preview:
 	$(PYTHON) -m ophis.gui.app --preview

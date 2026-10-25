@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import pathlib
 import sys
 
-from . import protocol as p
-from . import sysinfo
+from . import animations, desktop, profile, protocol as p, sysinfo, thermal
 from .backend import DeviceBackend
 
 POWER_NAMES = {
@@ -78,6 +78,27 @@ def build_parser() -> argparse.ArgumentParser:
     effect.add_argument("--speed", type=int, default=2, choices=range(1, 5), help="1 slow to 4 fast")
     effect.add_argument("--direction", default="left", choices=["left", "right"], help="wave direction")
 
+    sub.add_parser("temp", help="read CPU, GPU and NVMe temperatures")
+
+    sub.add_parser("profile", help="print the saved profile")
+    sub.add_parser("save", help="save the current settings as the profile")
+
+    apply_parser = sub.add_parser("apply", help="apply the saved profile")
+    apply_parser.add_argument("--file", default=None, help="use another profile file")
+
+    animate = sub.add_parser("animate", help="run a per-key animation on the host")
+    animate.add_argument("name", choices=animations.ANIMATIONS)
+    animate.add_argument("--seconds", type=float, default=0, help="0 runs until interrupted")
+    animate.add_argument("--color", default="FF6A00")
+    animate.add_argument("--secondary", default="0030FF")
+    animate.add_argument("--angle", type=float, default=30.0)
+    animate.add_argument("--speed", type=float, default=1.0)
+    animate.add_argument("--density", type=float, default=0.25)
+    animate.add_argument("--rainbow", action="store_true")
+
+    autostart = sub.add_parser("autostart", help="start the tray at login")
+    autostart.add_argument("value", choices=["on", "off", "status"])
+
     return parser
 
 
@@ -141,6 +162,46 @@ def emit(data: dict, as_json: bool, human: bool = False) -> None:
         print("OK")
 
 
+def run_animation(args) -> int:
+    from gi.repository import GLib
+
+    from .animations import AnimationEngine, Params
+
+    backend = DeviceBackend()
+    if not backend.connected:
+        print(backend.detail, file=sys.stderr)
+        return 2
+    params = Params(
+        colour=parse_color(args.color),
+        secondary=parse_color(args.secondary),
+        speed=args.speed,
+        angle=args.angle,
+        density=args.density,
+        rainbow=args.rainbow,
+    )
+    engine = AnimationEngine(backend.device)
+    engine.start(args.name, params)
+    loop = GLib.MainLoop()
+
+    def finish() -> bool:
+        engine.stop()
+        loop.quit()
+        return False
+
+    if args.seconds > 0:
+        GLib.timeout_add(int(args.seconds * 1000), finish)
+    try:
+        loop.run()
+    except KeyboardInterrupt:
+        engine.stop()
+    finally:
+        backend.set_effect(p.Effect.STATIC, params.colour)
+        backend.close()
+    if engine.last_error:
+        print(f"note: {engine.last_error}", file=sys.stderr)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -159,6 +220,46 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "info":
             emit(snapshot(backend), args.json, human=True)
             return 0
+
+        if args.command == "temp":
+            reading = thermal.read()
+            data = reading.as_dict()
+            if args.json:
+                print(json.dumps(data, indent=2))
+            else:
+                for name, value in data.items():
+                    shown = "n/a" if value is None else f"{value:.1f} C"
+                    print(f"{name:8s}: {shown}")
+            return 0
+
+        if args.command == "profile":
+            print(json.dumps(profile.load(), indent=2))
+            return 0
+
+        if args.command == "save":
+            path = profile.save(profile.capture(backend))
+            print(f"saved {path}")
+            return 0
+
+        if args.command == "apply":
+            target = pathlib.Path(args.file) if args.file else None
+            warnings = profile.apply(backend, profile.load(target))
+            for warning in warnings:
+                print(f"warning: {warning}", file=sys.stderr)
+            emit(snapshot(backend), args.json)
+            return 0
+
+        if args.command == "autostart":
+            if args.value == "status":
+                print("enabled" if desktop.autostart_enabled() else "disabled")
+            else:
+                desktop.set_autostart(args.value == "on")
+                print(f"autostart {args.value}")
+            return 0
+
+        if args.command == "animate":
+            backend.close()
+            return run_animation(args)
 
         if args.command == "get":
             data = snapshot(backend)

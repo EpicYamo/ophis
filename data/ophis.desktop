@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Ophis
+Comment=Razer Blade control center
+Exec=ophis-tray
+Icon=input-keyboard-symbolic
+Terminal=false
+Categories=System;Settings;HardwareSettings;
+X-GNOME-Autostart-enabled=true
