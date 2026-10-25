@@ -152,12 +152,20 @@ class Packet:
         return bytes(buf)
 
     @classmethod
-    def decode(cls, data: bytes) -> "Packet":
+    def decode(cls, data: bytes, accept_crc: int | None = None) -> "Packet":
+        """Parse a reply.
+
+        The firmware does not recompute the checksum for replies: it keeps the
+        one from the request in byte 88. So a reply that carries data (fan rpm,
+        brightness, charge limit) fails a strict check. Pass the request's
+        checksum as `accept_crc` to accept that echo as well; the status byte
+        and the echoed command class/id are still validated by `check()`.
+        """
         if len(data) != PACKET_LEN:
             raise ValueError(f"expected {PACKET_LEN} bytes, got {len(data)}")
         expected = checksum(data)
         actual = data[88]
-        if expected != actual:
+        if expected != actual and actual != accept_crc:
             raise RazerError(f"CRC mismatch: expected 0x{expected:02x}, got 0x{actual:02x}")
         return cls(
             command_class=data[7],

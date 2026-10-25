@@ -13,9 +13,9 @@ No DKMS module, no Secure Boot changes, no cloud account. It talks to the
 laptop's embedded controller over the HID feature-report protocol that Synapse
 itself uses.
 
-> **Status: pre-alpha.** Read-only commands are verified on the target laptop;
-> write commands are implemented from the documented protocol but are still
-> waiting for a hardware test. See [ROADMAP.md](ROADMAP.md).
+> **Status: pre-alpha.** Reads and the keyboard / charge-limit write paths are
+> verified on the target laptop; fan control has not been tested on hardware
+> yet. See [ROADMAP.md](ROADMAP.md).
 
 ## Why this exists
 

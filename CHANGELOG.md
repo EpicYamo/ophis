@@ -20,6 +20,12 @@ All notable changes to this project are documented here. The format follows
 - protocol and research documentation
 - unit tests for packets, checksums, charge-limit packing and fan units
 
+### Fixed
+
+- replies that carry data were being rejected: the firmware reuses the request's
+  checksum instead of recomputing it, so `Packet.decode` now accepts the echo
+  when the caller passes it (found during the first hardware write test)
+
 ### Notes
 
 - Read-only commands are verified on the target laptop; write commands still

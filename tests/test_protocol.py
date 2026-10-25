@@ -37,6 +37,17 @@ class PacketTests(unittest.TestCase):
         with self.assertRaises(p.RazerError):
             p.Packet.decode(bytes(raw))
 
+    def test_decode_accepts_the_request_crc_echo(self):
+        # Observed on hardware: the firmware copies the request checksum into
+        # the reply instead of recomputing it.
+        raw = bytearray(p.Packet.request(p.Class.LED, p.Cmd.LED_GET_BRIGHTNESS, 3, bytes([1, 5, 0])).encode())
+        raw[11] = 0x80  # reply says "brightness 128", so the stored CRC is stale
+        with self.assertRaises(p.RazerError):
+            p.Packet.decode(bytes(raw))
+        decoded = p.Packet.decode(bytes(raw), accept_crc=raw[88])
+        self.assertEqual(decoded.arguments[2], 0x80)
+        self.assertEqual(decoded.command_id, p.Cmd.LED_GET_BRIGHTNESS)
+
     def test_check_rejects_not_supported(self):
         reply = p.Packet(command_class=0x07, command_id=0x92, data_size=1,
                          arguments=bytes(80), status=p.Status.NOT_SUPPORTED)

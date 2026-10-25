@@ -60,6 +60,29 @@ packet[88] = crc
 
 Note the range: the last argument byte (offset 88) is **not** part of the XOR.
 
+### Replies reuse the request's checksum
+
+This firmware does **not** recompute the checksum when it answers. It leaves
+the request's byte 88 in place, so a reply that carries data fails a strict
+check. Verified on hardware by varying an unused request argument and watching
+byte 88 of the reply follow it while the reply data stayed identical:
+
+| Request byte 10 | Request byte 88 | Reply byte 88 |
+| --- | --- | --- |
+| `00` | `98` | `98` |
+| `11` | `89` | `89` |
+| `AA` | `32` | `32` |
+| `FF` | `67` | `67` |
+
+So a reply is accepted when its checksum matches either the recomputed value or
+the checksum the request carried. `Packet.decode(..., accept_crc=...)` does
+exactly that, and `HidrawTransport` always passes the request checksum. The
+status byte and the echoed command class/id are still validated, which is what
+actually catches a misbehaving device.
+
+Byte 89 comes back non-zero on replies (`0x9F`, `0xCE`, ...) and is not part of
+either checksum; requests send `0x00` there and are accepted.
+
 ## Commands
 
 `zone` is `1` for the CPU and `2` for the GPU. Write commands are sent for both
@@ -124,10 +147,14 @@ Static colour is `effect_id = 0x06` followed by `R`, `G`, `B`.
 
 1. Build the packet, pad arguments to 80 bytes, compute the CRC.
 2. `HIDIOCSFEATURE(91)` with the buffer (first byte is the report number `0`).
-3. Wait ~1 ms.
+3. Wait a few milliseconds.
 4. `HIDIOCGFEATURE(91)` into a zeroed buffer.
-5. Decode, verify CRC, verify class/id match, require status `0x02`.
+5. Decode, accept the CRC if it matches the reply **or** the request, verify the
+   echoed class/id, require status `0x02`.
 6. Retry up to 3 times; the device occasionally answers late.
+
+Measuring with `strace -e ioctl` is enough to see the exchange; `HIDIOCGFEATURE`
+returns all 91 bytes, so no `read()` loop is needed.
 
 ## Open questions
 

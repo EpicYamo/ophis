@@ -33,11 +33,15 @@ BIOS 3.06). Recorded values:
 - [x] Verify `get charge limit` returns the configured 80% limit
 - [x] Confirm the reply offsets in `docs/PROTOCOL.md` against real packets
       (zone at `args[1]`, value at `args[2]`, BHO packed byte at `args[0]`)
-- [ ] Write a single, reversible command (brightness) and confirm it applies
-- [ ] Write the charge limit and confirm the battery stops at the threshold
+- [x] Write a single, reversible command: brightness 255 → 128 → 255, each step
+      read back from the device
+- [x] Write the charge limit with its current value (enabled, 80%) and read it
+      back unchanged — the write path works without altering behaviour
+- [ ] Confirm the battery actually stops at the threshold (needs a charge cycle)
 - [ ] Write fan RPM and confirm the audible change
-- [ ] Document any command that behaves differently from `docs/PROTOCOL.md`
-      (nothing has differed so far)
+- [x] Document any command that behaves differently from `docs/PROTOCOL.md`:
+      replies reuse the **request's** checksum instead of recomputing it, which
+      is now handled by `Packet.decode(..., accept_crc=...)`
 
 ## M2 — Daemon
 
