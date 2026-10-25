@@ -133,7 +133,7 @@ balanced looked successful in every query and did nothing audible.
 | Question | Approach |
 | --- | --- |
 | Actual fan RPM | The EC likely exposes a tachometer read. Not in the command table we know. Candidates: an unused `0x0D` sub-command, or a separate class. Needs a probe sweep + comparison with `sensors`. |
-| MUX / Optimus state | Probably an ACPI/WMI call rather than HID. Check `acpi_listen`, DSDT, and the Windows `RazerControlService` behaviour. |
+| MUX / Optimus state | Probably an ACPI/WMI call rather than HID. Check `acpi_listen`, DSDT, and the Windows `OphisService` behaviour. |
 | Refresh-rate switching | Synapse may push it over the same HID channel; Mutter DBus is the safer Linux-side implementation anyway. |
 | GPU TGP limits | Likely `nvidia-smi -pl`, not the EC. |
 | Thresholds below 50% | Unknown whether the firmware accepts them; the UI deliberately stops at 50%. |

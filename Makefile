@@ -15,13 +15,13 @@ test:
 	$(PYTHON) -m unittest discover -s tests -v
 
 run:
-	$(PYTHON) -m razercc.gui.app
+	$(PYTHON) -m ophis.gui.app
 
 preview:
-	$(PYTHON) -m razercc.gui.app --preview
+	$(PYTHON) -m ophis.gui.app --preview
 
 cli:
-	$(PYTHON) -m razercc.cli info
+	$(PYTHON) -m ophis.cli info
 
 udev:
 	sudo cp data/99-razer-hidraw.rules /etc/udev/rules.d/

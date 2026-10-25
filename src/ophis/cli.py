@@ -1,4 +1,4 @@
-"""Command line interface: ``razercc``.
+"""Command line interface: ``ophis``.
 
 Requires write access to the hidraw control node: run it as root, or install
 ``data/99-razer-hidraw.rules`` so your desktop session gets access.
@@ -34,7 +34,7 @@ LOGO_NAMES = {"off": 0, "on": 1, "breathing": 2}
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="razercc",
+        prog="ophis",
         description="Control Razer Blade 14 (2022) fan, power and lighting on Linux.",
     )
     parser.add_argument("--json", action="store_true", help="machine readable output")

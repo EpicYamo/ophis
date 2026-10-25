@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "razer-control-center"
+name = "ophis"
 version = "0.1.0"
-description = "Linux control center for Razer Blade 14 (2022): power profiles, fan, keyboard lighting and charge limit"
+description = "Linux control center for the Razer Blade 14 (2022): performance profiles, fan curves, per-key RGB and charge limit"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -22,12 +22,13 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/EpicYamo/razer-control-center"
-Issues = "https://github.com/EpicYamo/razer-control-center/issues"
+Homepage = "https://github.com/EpicYamo/ophis"
+Issues = "https://github.com/EpicYamo/ophis/issues"
 
 [project.scripts]
-razercc = "razercc.cli:main"
-razer-control-center = "razercc.gui.app:main"
+ophis = "ophis.cli:main"
+ophis-gui = "ophis.gui.app:main"
+ophis-tray = "ophis.tray:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

@@ -1,4 +1,4 @@
-# razer-control-center
+# ophis
 
 A Linux control center for the **Razer Blade 14 (2022), RZ09-0427** — the parts
 of Razer Synapse that actually matter:
@@ -43,8 +43,8 @@ behaviour, not as a fork. See [docs/PROTOCOL.md](docs/PROTOCOL.md) and
 ## Install
 
 ```bash
-git clone https://github.com/EpicYamo/razer-control-center.git
-cd razer-control-center
+git clone https://github.com/EpicYamo/ophis.git
+cd ophis
 
 # give your desktop session access to the control interface (recommended)
 sudo cp data/99-razer-hidraw.rules /etc/udev/rules.d/
@@ -59,7 +59,7 @@ make preview     # GUI with a fake device, no hardware, no permissions
 Without the udev rule you can always run the CLI with `sudo`:
 
 ```bash
-sudo PYTHONPATH=src python3 -m razercc.cli info
+sudo PYTHONPATH=src python3 -m ophis.cli info
 ```
 
 ## Usage
@@ -67,28 +67,28 @@ sudo PYTHONPATH=src python3 -m razercc.cli info
 From the checkout (no installation needed):
 
 ```bash
-PYTHONPATH=src python3 -m razercc.cli info      # everything at a glance
-PYTHONPATH=src python3 -m razercc.cli --preview info
+PYTHONPATH=src python3 -m ophis.cli info      # everything at a glance
+PYTHONPATH=src python3 -m ophis.cli --preview info
 ```
 
-Or install it once to get the `razercc` command:
+Or install it once to get the `ophis` command:
 
 ```bash
 pipx install .        # or: python3 -m pip install --user .
-razercc info
+ophis info
 ```
 
 Commands:
 
 ```bash
-razercc get battery --json            # charge limit + live capacity
-razercc set power gaming
-razercc set fan 4200                  # fixed speed (switches to Custom)
-razercc set fan auto                  # back to the firmware curve
-razercc set brightness 180
-razercc set bho on --threshold 80     # stop charging at 80%
-razercc set effect static --color FF5500
-razercc set logo breathing
+ophis get battery --json            # charge limit + live capacity
+ophis set power gaming
+ophis set fan 4200                  # fixed speed (switches to Custom)
+ophis set fan auto                  # back to the firmware curve
+ophis set brightness 180
+ophis set bho on --threshold 80     # stop charging at 80%
+ophis set effect static --color FF5500
+ophis set logo breathing
 ```
 
 Every command accepts `--json` for scripting, and `--preview` to exercise the

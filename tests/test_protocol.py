@@ -1,6 +1,6 @@
 import unittest
 
-from razercc import protocol as p
+from ophis import protocol as p
 
 
 class PacketTests(unittest.TestCase):

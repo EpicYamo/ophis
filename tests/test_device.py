@@ -1,8 +1,8 @@
 import unittest
 
-from razercc import protocol as p
-from razercc.device import RazerDevice
-from razercc.transport import FakeTransport
+from ophis import protocol as p
+from ophis.device import RazerDevice
+from ophis.transport import FakeTransport
 
 
 class DeviceTests(unittest.TestCase):

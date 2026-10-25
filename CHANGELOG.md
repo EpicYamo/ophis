@@ -14,7 +14,7 @@ All notable changes to this project are documented here. The format follows
 - device API: power profiles, CPU/GPU boost, fan RPM, keyboard brightness,
   logo LED, lighting effects, battery charge limit
 - GTK4/libadwaita control window with a hardware-free preview mode
-- `razercc` CLI with JSON output for scripting
+- `ophis` CLI with JSON output for scripting
 - battery and AC state from `/sys/class/power_supply`
 - udev rule for non-root access to the control interface
 - protocol and research documentation
@@ -43,4 +43,4 @@ All notable changes to this project are documented here. The format follows
 - Only `1532:028C` (Blade 14 2022) is a known target. Other models advertise
   different feature sets and fan ranges.
 
-[0.1.0]: https://github.com/EpicYamo/razer-control-center/releases/tag/v0.1.0
+[0.1.0]: https://github.com/EpicYamo/ophis/releases/tag/v0.1.0

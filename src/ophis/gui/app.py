@@ -14,10 +14,10 @@ from gi.repository import Adw, Gio  # noqa: E402
 from ..backend import open_backend  # noqa: E402
 from .window import ControlWindow  # noqa: E402
 
-APPLICATION_ID = "io.github.theyamo.RazerControl"
+APPLICATION_ID = "io.github.epicyamo.Ophis"
 
 
-class RazerControlApp(Adw.Application):
+class OphisApp(Adw.Application):
     def __init__(self, preview: bool = False):
         super().__init__(application_id=APPLICATION_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
         self.preview = preview
@@ -40,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv if argv is None else argv)
     preview = "--preview" in args
     args = [arg for arg in args if arg != "--preview"]
-    app = RazerControlApp(preview=preview)
+    app = OphisApp(preview=preview)
     return app.run(args)
 
 
