@@ -13,13 +13,31 @@ the corresponding section of the README is accurate.
 
 ## M1 — Hardware verification
 
-- [ ] Run the read-only probe on the target laptop and record the real values
-- [ ] Verify `get power mode` matches what the firmware had before the probe
-- [ ] Verify `get charge limit` returns the value Synapse would show
+Read-only verification completed on 2026-10-25 on the target laptop
+(Blade 14 2022, `1532:028C`, `/dev/hidraw5`, driver `hid-generic`,
+BIOS 3.06). Recorded values:
+
+| Query | Reply arguments | Decoded |
+| --- | --- | --- |
+| power mode, CPU | `00 01 00 00` | zone 1, mode 0 (balanced) |
+| power mode, GPU | `00 02 00 00` | zone 2, mode 0 (balanced) |
+| CPU boost | `00 01 01 00` | level 1 (normal) |
+| GPU boost | `00 02 01 00` | level 1 (normal) |
+| keyboard brightness | `01 05 FF` | `VARSTORE`, `BACKLIGHT_LED`, 255 |
+| logo LED | `01 04 00` | `VARSTORE`, `LOGO_LED`, off |
+| charge limit | `D0` | enabled, threshold 80% |
+
+- [x] Run the read-only probe on the target laptop and record the real values
+- [x] Verify `get power mode` reports the profile the firmware was running
+      (balanced on both zones)
+- [x] Verify `get charge limit` returns the configured 80% limit
+- [x] Confirm the reply offsets in `docs/PROTOCOL.md` against real packets
+      (zone at `args[1]`, value at `args[2]`, BHO packed byte at `args[0]`)
 - [ ] Write a single, reversible command (brightness) and confirm it applies
 - [ ] Write the charge limit and confirm the battery stops at the threshold
 - [ ] Write fan RPM and confirm the audible change
 - [ ] Document any command that behaves differently from `docs/PROTOCOL.md`
+      (nothing has differed so far)
 
 ## M2 — Daemon
 

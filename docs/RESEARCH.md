@@ -60,6 +60,31 @@ The read-only probe used for step 1–2 is kept at
 `~/Desktop/tools/probe/probe.py` (outside the repository, because it needs root
 and is not part of the product).
 
+### Result, 2026-10-25
+
+Every read-only query answered with status `0x02` (successful) and the CRC and
+echoed class/id checked out. The decoded values matched the settings the machine
+was actually running, which is the evidence that the field offsets are right:
+
+| Query | Raw arguments | Meaning |
+| --- | --- | --- |
+| `0x0D/0x82` zone 1 | `00 01 00 00` | CPU zone, balanced |
+| `0x0D/0x82` zone 2 | `00 02 00 00` | GPU zone, balanced |
+| `0x0D/0x87` CPU | `00 01 01 00` | boost level 1 (normal) |
+| `0x0D/0x87` GPU | `00 02 01 00` | boost level 1 (normal) |
+| `0x03/0x83` | `01 05 FF` | brightness 255 of 255 |
+| `0x03/0x82` (logo) | `01 04 00` | logo LED off |
+| `0x07/0x92` | `D0` | charge limit enabled, 80% |
+
+Two things this proved that the old notes only assumed:
+
+- the zone byte really sits at `args[1]` and the value at `args[2]`
+- the charge-limit byte is `0x80 | threshold`, so `0x50` (80) with bit 7 set
+  becomes `0xD0`
+
+It also confirmed that `hid-generic` plus a udev rule is enough: the probe ran
+as a normal user, with no kernel module and Secure Boot still enabled.
+
 ## Open questions and how to attack them
 
 | Question | Approach |

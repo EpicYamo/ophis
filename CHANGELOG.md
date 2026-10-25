@@ -22,8 +22,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Notes
 
-- Hardware verification is still pending; see `ROADMAP.md` M1.
+- Read-only commands are verified on the target laptop; write commands still
+  need a hardware test. See `ROADMAP.md` M1.
 - Only `1532:028C` (Blade 14 2022) is a known target. Other models advertise
   different feature sets and fan ranges.
 
-[0.1.0]: https://github.com/TheYamo/razer-control-center/releases/tag/v0.1.0
+[0.1.0]: https://github.com/EpicYamo/razer-control-center/releases/tag/v0.1.0

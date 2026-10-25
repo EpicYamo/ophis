@@ -13,9 +13,9 @@ No DKMS module, no Secure Boot changes, no cloud account. It talks to the
 laptop's embedded controller over the HID feature-report protocol that Synapse
 itself uses.
 
-> **Status: pre-alpha.** The protocol layer is unit-tested against captured
-> packet layouts; the GUI is functional but has not been verified on hardware
-> yet. See [ROADMAP.md](ROADMAP.md).
+> **Status: pre-alpha.** Read-only commands are verified on the target laptop;
+> write commands are implemented from the documented protocol but are still
+> waiting for a hardware test. See [ROADMAP.md](ROADMAP.md).
 
 ## Why this exists
 
@@ -43,13 +43,13 @@ behaviour, not as a fork. See [docs/PROTOCOL.md](docs/PROTOCOL.md) and
 ## Install
 
 ```bash
-git clone https://github.com/TheYamo/razer-control-center.git
+git clone https://github.com/EpicYamo/razer-control-center.git
 cd razer-control-center
 
 # give your desktop session access to the control interface (recommended)
 sudo cp data/99-razer-hidraw.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
-sudo udevadm trigger
+sudo udevadm trigger --action=change --subsystem-match=hidraw
 
 make test        # unit tests, no hardware needed
 make run         # start the GUI
