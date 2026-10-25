@@ -1,0 +1,84 @@
+/* A dark, Synapse-shaped surface with a Razer-green accent. */
+
+.ophis-root {
+  background-color: #141416;
+}
+
+.sidebar {
+  background-color: #1a1a1d;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.brand {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  color: #44d62c;
+}
+
+.muted {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.nav {
+  background: transparent;
+}
+
+.nav row {
+  border-radius: 10px;
+  margin: 2px 10px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.nav row:selected {
+  background-color: rgba(68, 214, 44, 0.14);
+  color: #ffffff;
+}
+
+.nav row:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.profile-card {
+  border-radius: 14px;
+  padding: 4px;
+  background-color: #202024;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.profile-card:hover {
+  background-color: #26262b;
+}
+
+.profile-card:checked {
+  background-color: rgba(68, 214, 44, 0.16);
+  border-color: #44d62c;
+  color: #ffffff;
+}
+
+.preview {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+window {
+  background-color: #141416;
+}
+
+preferencespage {
+  background-color: #141416;
+}
+
+preferencesgroup list {
+  background-color: #1c1c20;
+}
+
+scale trough highlight {
+  background-color: #44d62c;
+}
+
+scale slider {
+  background-color: #ffffff;
+}
