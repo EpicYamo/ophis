@@ -85,6 +85,24 @@ Two things this proved that the old notes only assumed:
 It also confirmed that `hid-generic` plus a udev rule is enough: the probe ran
 as a normal user, with no kernel module and Secure Boot still enabled.
 
+### Write commands, 2026-10-25
+
+Each write was followed by a read of the same value, so "accepted" below means
+the device reported success **and** the new value came back.
+
+| Command | Sent | Result |
+| --- | --- | --- |
+| brightness | `01 05 80`, then `01 05 FF` | read back `80`, then `FF` |
+| charge limit | `D0` (enabled, 80%) | read back `D0`, unchanged |
+| fan | mode `0`, `manual_fan=1`, `42` to both zones | accepted; nothing to read back, so only the sound confirms it |
+| fan, automatic | mode `0`, `manual_fan=0` | accepted, hands control back to the firmware |
+| lighting | static `FF5500`, static `00FF00`, breathing, spectrum | accepted; the firmware has no query for the current effect |
+| logo LED | `set_led_state(VARSTORE, LOGO_LED, 1)` | accepted, but the state query still returns `0` |
+
+The logo result is the one loose end: the write is acknowledged but the query
+never changes, so either the lid logo is not illuminated on this model or the
+state query is not the right command.
+
 ## Open questions and how to attack them
 
 | Question | Approach |

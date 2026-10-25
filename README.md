@@ -108,6 +108,17 @@ CLI (argparse)         ─┴─►  RazerDevice  ─►  HidrawTransport  ─�
 - `backend.py` — the seam the GUI/CLI use.
 - `sysinfo.py` — battery and AC state from `/sys/class/power_supply`.
 
+## Known limitations
+
+- Fan speed can be set but not read: this interface has no tachometer command,
+  so a new session always starts on "automatic" even if a fixed speed was set
+  earlier.
+- The logo LED accepts writes but its state query keeps returning `0`, so the
+  app cannot tell whether the lid logo is actually lit.
+- Effects other than static are sent with the effect id only. Synapse also
+  sends colour and speed parameters, so the firmware falls back to its own
+  defaults for those.
+
 ## Safety
 
 The protocol is the same one Razer's own software uses, but it is undocumented

@@ -162,6 +162,9 @@ These are not needed for the features above, but are the interesting next steps
 (see [ROADMAP.md](../ROADMAP.md)):
 
 - reading the **actual** fan RPM (only the target is writable today)
+- why the logo LED state query (`0x03/0x82`) returns `0` even right after a
+  successful write — either the lid logo is not illuminated on this model, or
+  the state lives in a different command
 - MUX switch / Optimus state
 - display refresh-rate switching on models that Synapse handles
 - GPU TGP limits
