@@ -37,7 +37,7 @@ class KeyboardView(Gtk.Widget):
         self._drag_start = (0.0, 0.0)
         self._last_painted: tuple[int, int] | None = None
 
-        self.mapping = layouts.load_map()
+        self.mapping = layouts.load_cells()
         self.cells = layouts.cell_lookup(self.mapping)
 
         drag = Gtk.GestureDrag()
@@ -62,7 +62,7 @@ class KeyboardView(Gtk.Widget):
         self.queue_draw()
 
     def reload_map(self) -> None:
-        self.mapping = layouts.load_map()
+        self.mapping = layouts.load_cells()
         self.cells = layouts.cell_lookup(self.mapping)
         self.queue_draw()
 
@@ -80,9 +80,9 @@ class KeyboardView(Gtk.Widget):
     def _key_rect(key, unit: float, origin_x: float, origin_y: float):
         return (
             origin_x + key.x * unit + 1.5,
-            origin_y + key.row * unit + 1.5,
+            origin_y + (key.row + key.y_offset) * unit + 1.5,
             key.width * unit - 3.0,
-            unit - 3.0,
+            key.height * unit - 3.0,
         )
 
     def _cell_at(self, x: float, y: float) -> tuple[int, int] | None:
@@ -93,10 +93,10 @@ class KeyboardView(Gtk.Widget):
             for key in layouts.LAYOUT:
                 left, top, key_w, key_h = self._key_rect(key, unit, origin_x, origin_y)
                 if left <= x <= left + key_w and top <= y <= top + key_h:
-                    cell = self.mapping.get(key.id)
+                    cell = self.mapping.get(key.code)
                     if cell is None:
                         if self.on_unmapped is not None:
-                            self.on_unmapped(key.id)
+                            self.on_unmapped(key)
                         return None
                     return (cell[0], cell[1])
             return None
@@ -181,8 +181,8 @@ class KeyboardView(Gtk.Widget):
         font = Pango.FontDescription("Sans 8")
         for key in layouts.LAYOUT:
             left, top, key_w, key_h = self._key_rect(key, unit, origin_x, origin_y)
-            cell = self.mapping.get(key.id)
-            if cell is None:
+            cell = self.mapping.get(key.code)
+            if cell is None or not key.lit:
                 colour = Gdk.RGBA()
                 colour.parse("#1a1a1e")
             else:
@@ -218,7 +218,9 @@ class KeyboardView(Gtk.Widget):
                 text.parse("rgba(255,255,255,0.75)")
                 snapshot.save()
                 snapshot.translate(
-                    left + (key_w - text_w) / 2.0, top + (key_h - text_h) / 2.0
+                    Graphene.Point().init(
+                        left + (key_w - text_w) / 2.0, top + (key_h - text_h) / 2.0
+                    )
                 )
                 snapshot.append_layout(layout, text)
                 snapshot.restore()

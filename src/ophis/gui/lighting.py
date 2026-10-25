@@ -459,8 +459,11 @@ class LightingPage(Gtk.Box):
         params.zone_colours[index] = self._colour_of(button)
         self._changed(name, params, restart=True)
 
-    def _on_unmapped_key(self, _key_id: str) -> None:
-        self.window.toast("This key has no matrix cell yet; run the mapper")
+    def _on_unmapped_key(self, key) -> None:
+        if not key.lit:
+            self.window.toast("This key has no LED on this model")
+        else:
+            self.window.toast(f"{key.legend or key.code} is not mapped yet")
 
     # -- preview / painting -------------------------------------------------
     def _on_frame(self, matrix) -> None:

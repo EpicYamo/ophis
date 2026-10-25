@@ -70,6 +70,16 @@ The acknowledged path is used: it is slower, but no stale responses are left
 queued for the next command. If ten frames in a row take more than 140 ms, the
 engine stops and leaves a static colour instead of hammering the controller.
 
+## The key map
+
+`data/keymap_blade14.json` maps X11 keycodes to matrix cells, produced with
+`tools/mapper.py`: the tool lights one cell, the owner presses the key that lit
+up, and the keycode is recorded. Column 0 has no physical keys, and the space
+bar has no LED on this model, so neither appears in the map.
+
+The window draws the German ISO layout from `src/ophis/layouts.py`: tall Enter,
+right Shift resting above the arrow cluster, and up/down sharing one key width.
+
 ## Frame protocol
 
 | Report | `data_size` | Arguments |
