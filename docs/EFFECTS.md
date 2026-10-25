@@ -77,8 +77,11 @@ engine stops and leaves a static colour instead of hammering the controller.
 up, and the keycode is recorded. Column 0 has no physical keys, and the space
 bar has no LED on this model, so neither appears in the map.
 
-The window draws the German ISO layout from `src/ophis/layouts.py`: tall Enter,
-right Shift resting above the arrow cluster, and up/down sharing one key width.
+The window draws the German ISO layout from `src/ophis/layouts.py`: tall
+Enter with the ISO notch, right Shift resting above the arrow cluster, up/down
+sharing one key width, and the function row slightly shorter than the rest.
+The laptop has no PrtSc key: the last two keys are Del and the power button,
+and neither the power button nor the space bar has a matrix LED.
 
 ## Frame protocol
 

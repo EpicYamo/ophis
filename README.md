@@ -218,8 +218,8 @@ operating system changes, which is why quitting Ophis does not reset it.
 
 - The fan figure is the setpoint, not a measurement: this controller exposes no
   tachometer.
-- The Blade 14 (2022) has **no LED under the space bar**. It is drawn in the
-  preview but can never light, and the matrix map marks it as unlit.
+- The Blade 14 (2022) has **no LED under the space bar**, and no PrtSc key
+  (the last keys are Del and the power button). Both are drawn but never light.
 - The fan curve runs only while the app is open. The controller keeps the last
   speed afterwards.
 - Hardware-wave direction (`01`/`02`) is not mapped to physical left/right.

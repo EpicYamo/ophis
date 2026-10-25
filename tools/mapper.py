@@ -66,12 +66,8 @@ class Board(Gtk.Widget):
     def _on_pressed(self, _gesture, _presses, x, y) -> None:
         unit, origin_x, origin_y = self._metrics()
         for key in layouts.LAYOUT:
-            left = origin_x + key.x * unit + 1.5
-            top = origin_y + (key.row + key.y_offset) * unit + 1.5
-            if (
-                left <= x <= left + key.width * unit - 3
-                and top <= y <= top + key.height * unit - 3
-            ):
+            left, top, key_w, key_h = layouts.key_rect(key, unit, origin_x, origin_y)
+            if left <= x <= left + key_w and top <= y <= top + key_h:
                 self.on_key(key)
                 return
 
@@ -90,10 +86,7 @@ class Board(Gtk.Widget):
         font = Pango.FontDescription("Sans 7")
 
         for key in layouts.LAYOUT:
-            left = origin_x + key.x * unit + 1.5
-            top = origin_y + (key.row + key.y_offset) * unit + 1.5
-            key_w = key.width * unit - 3
-            key_h = key.height * unit - 3
+            left, top, key_w, key_h = layouts.key_rect(key, unit, origin_x, origin_y)
 
             cell = self.cells.get(key.code)
             colour = Gdk.RGBA()

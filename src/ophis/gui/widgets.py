@@ -78,12 +78,7 @@ class KeyboardView(Gtk.Widget):
 
     @staticmethod
     def _key_rect(key, unit: float, origin_x: float, origin_y: float):
-        return (
-            origin_x + key.x * unit + 1.5,
-            origin_y + (key.row + key.y_offset) * unit + 1.5,
-            key.width * unit - 3.0,
-            key.height * unit - 3.0,
-        )
+        return layouts.key_rect(key, unit, origin_x, origin_y)
 
     def _cell_at(self, x: float, y: float) -> tuple[int, int] | None:
         width = float(self.get_width())
@@ -200,6 +195,17 @@ class KeyboardView(Gtk.Widget):
             snapshot.push_rounded_clip(rounded)
             snapshot.append_color(colour, rect)
             snapshot.pop()
+
+            notch = layouts.notch_rect(key, unit, origin_x, origin_y)
+            if notch is not None:
+                cut = Graphene.Rect().init(*notch)
+                cut_rounded = Gsk.RoundedRect()
+                cut_rounded.init_from_rect(cut, radius)
+                snapshot.push_rounded_clip(cut_rounded)
+                cut_colour = Gdk.RGBA()
+                cut_colour.parse("#0b0b0d")
+                snapshot.append_color(cut_colour, cut)
+                snapshot.pop()
 
             edge = Gdk.RGBA()
             edge.parse("rgba(0,0,0,0.55)")
