@@ -32,7 +32,10 @@ HOST_EFFECTS = [
 FIRMWARE_EFFECTS = [
     ("None", None),
     ("Off", p.Effect.OFF),
+    ("Static", p.Effect.STATIC),
+    ("Breathing", p.Effect.BREATHING),
     ("Spectrum", p.Effect.SPECTRUM),
+    ("Wave", p.Effect.WAVE),
     ("Reactive", p.Effect.REACTIVE),
     ("Starlight", p.Effect.STARLIGHT),
 ]
@@ -55,6 +58,7 @@ class LightingPage(Gtk.Box):
         self._paint_mode = False
         self._custom_save = 0
         self._settings_widgets: dict[str, Gtk.Widget] = {}
+        self._logo_healed = False
         self._current = "static"
 
         device = getattr(self.backend, "device", None)
@@ -94,13 +98,50 @@ class LightingPage(Gtk.Box):
         spacer.set_vexpand(True)
         box.append(spacer)
 
-        firmware = Gtk.Label(label="FIRMWARE", xalign=0)
+        firmware = Gtk.Label(label="KEYBOARD EFFECTS", xalign=0)
         firmware.add_css_class("section-title")
         box.append(firmware)
+        note = Gtk.Label(
+            label="Rendered by the keyboard itself: no CPU cost, fewer parameters.",
+            xalign=0,
+            wrap=True,
+        )
+        note.add_css_class("muted")
+        box.append(note)
         self.firmware_row = Adw.ComboRow(title="Effect")
         self.firmware_row.set_model(Gtk.StringList.new([name for name, _ in FIRMWARE_EFFECTS]))
         self.firmware_row.connect("notify::selected", self._on_firmware_selected)
         box.append(self.firmware_row)
+
+        self.firmware_controls = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.firmware_controls.set_homogeneous(False)
+        self.fw_colour = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog())
+        self.fw_colour.set_valign(Gtk.Align.CENTER)
+        self.fw_colour.set_tooltip_text("Effect colour")
+        colour = Gdk.RGBA()
+        colour.parse("#ffffff")
+        self.fw_colour.set_rgba(colour)
+        self.fw_colour.connect("notify::rgba", self._on_firmware_option)
+        self.firmware_controls.append(self.fw_colour)
+
+        self.fw_speed = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 4, 1)
+        self.fw_speed.set_value(2)
+        self.fw_speed.set_draw_value(True)
+        self.fw_speed.set_size_request(110, -1)
+        self.fw_speed.set_tooltip_text("Reactive and starlight speed")
+        disable_scale_scroll(self.fw_speed)
+        self.fw_speed.connect("value-changed", self._on_firmware_option)
+        self.firmware_controls.append(self.fw_speed)
+
+        self.fw_direction = Gtk.ComboBoxText()
+        self.fw_direction.append_text("Left to right")
+        self.fw_direction.append_text("Right to left")
+        self.fw_direction.set_active(0)
+        self.fw_direction.set_tooltip_text("Wave direction")
+        self.fw_direction.connect("changed", self._on_firmware_option)
+        self.firmware_controls.append(self.fw_direction)
+        self.firmware_controls.set_visible(False)
+        box.append(self.firmware_controls)
         return box
 
     # -- right column -------------------------------------------------------
@@ -250,6 +291,11 @@ class LightingPage(Gtk.Box):
 
         self._build_settings(name, params)
         self.params = params
+        if self._syncing is False and name != "custom":
+            self._syncing = True
+            self.firmware_row.set_selected(0)
+            self.firmware_controls.set_visible(False)
+            self._syncing = False
         self._apply_paint_mode(name, params)
 
     def _apply_paint_mode(self, name: str, params: Params) -> None:
@@ -561,25 +607,41 @@ class LightingPage(Gtk.Box):
         except Exception as exc:
             self.window.toast(str(exc))
 
+    def _firmware_effect(self):
+        index = self.firmware_row.get_selected()
+        if 0 <= index < len(FIRMWARE_EFFECTS):
+            return FIRMWARE_EFFECTS[index][1]
+        return None
+
     def _on_firmware_selected(self, row: Adw.ComboRow, _param) -> None:
         if self._syncing:
             return
-        index = row.get_selected()
-        if index <= 0:
-            return
-        _name, effect = FIRMWARE_EFFECTS[index]
+        effect = self._firmware_effect()
+        self.firmware_controls.set_visible(effect is not None)
         if effect is None:
             return
+        self._apply_firmware(effect)
+
+    def _on_firmware_option(self, *_args) -> None:
+        if self._syncing:
+            return
+        effect = self._firmware_effect()
+        if effect is not None:
+            self._apply_firmware(effect)
+
+    def _apply_firmware(self, effect: int) -> None:
+        rgba = self.fw_colour.get_rgba()
+        colour = (int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255))
+        speed = int(self.fw_speed.get_value())
+        direction = 1 if self.fw_direction.get_active() == 0 else 2
         if self.engine is not None:
             self.engine.stop()
         try:
-            self.backend.set_effect(effect, self.params.colour, 2, 1)
+            self.backend.set_effect(effect, colour, speed, direction)
             self.state.extra["effect"] = int(effect)
-            colour = self.params.colour if effect in (
-                p.Effect.OFF, p.Effect.STATIC
-            ) else (24, 24, 24)
+            shown = colour if effect in (p.Effect.OFF, p.Effect.STATIC) else (24, 24, 24)
             self.keyboard.set_matrix(
-                [[colour for _ in range(animations.COLS)] for _ in range(animations.ROWS)]
+                [[shown for _ in range(animations.COLS)] for _ in range(animations.ROWS)]
             )
         except Exception as exc:
             self.window.toast(str(exc))
@@ -593,3 +655,13 @@ class LightingPage(Gtk.Box):
             self.logo_combo.set_active(logo)
         finally:
             self._syncing = False
+
+        if not self._logo_healed:
+            self._logo_healed = True
+            if int(self.state.logo) in (1, 2):
+                # The EC can report the logo as on while its brightness is zero
+                # (for example after a controller reset). Re-apply it once.
+                try:
+                    self.backend.set_logo(int(self.state.logo))
+                except Exception:
+                    pass
