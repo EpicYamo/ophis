@@ -73,7 +73,6 @@ class OphisApp(Adw.Application):
             on_restore_defaults=self._restore_defaults,
             on_quit=self.quit_cleanly,
         )
-        self.tray.install_actions(self)
         if not self.tray.available:
             print(
                 "tray unavailable: install libayatana-appindicator-glib2 and "

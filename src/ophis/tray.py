@@ -73,8 +73,26 @@ class Tray:
             self._indicator = module.Indicator.new(
                 APP_ID, ICON_NAME, category.APPLICATION_STATUS
             )
+            self._actions = Gio.SimpleActionGroup()
+            for name, callback in (
+                ("open", self._open),
+                ("defaults", self._defaults),
+                ("quit", self._quit),
+            ):
+                action = Gio.SimpleAction.new(name, None)
+                action.connect("activate", lambda _a, _p, cb=callback: cb())
+                self._actions.add_action(action)
+
+            menu = Gio.Menu()
+            menu.append("Open Ophis", "indicator.open")
+            menu.append("Restore default settings", "indicator.defaults")
+            menu.append("Quit", "indicator.quit")
+
             self._indicator.set_status(status.ACTIVE)
-            self._indicator.set_menu(self._build_menu())
+            self._indicator.set_menu(menu)
+            # Without an action group the library never registers with the
+            # StatusNotifierWatcher, so the icon never appears.
+            self._indicator.set_actions(self._actions)
         except Exception:
             self._indicator = None
             return
@@ -88,26 +106,6 @@ class Tray:
     @property
     def available(self) -> bool:
         return self._indicator is not None
-
-    # -- menu ---------------------------------------------------------------
-    def _build_menu(self) -> Gio.Menu:
-        menu = Gio.Menu()
-        menu.append("Open Ophis", "tray.open")
-        menu.append("Restore default settings", "tray.defaults")
-        menu.append("Quit", "tray.quit")
-        return menu
-
-    def install_actions(self, app: Gio.Application) -> None:
-        """Wire the menu entries to application actions."""
-        for name, callback in (
-            ("open", self._open),
-            ("defaults", self._defaults),
-            ("quit", self._quit),
-        ):
-            action = Gio.SimpleAction.new(name, None)
-            action.connect("activate", lambda _action, _param, cb=callback: cb())
-            app.add_action(action)
-            app.set_accels_for_action(f"app.tray.{name}", [])
 
     # -- callbacks ----------------------------------------------------------
     def _on_activate(self, *_args) -> None:
@@ -144,3 +142,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = list(argv or [])
     return gui_main(["--tray", *args])
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
