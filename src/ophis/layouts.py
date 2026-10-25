@@ -52,7 +52,7 @@ LAYOUT: list[Key] = (
         ("67", "F1", 1.05), ("68", "F2", 1.05), ("69", "F3", 1.05), ("70", "F4", 1.05),
         ("71", "F5", 1.05), ("72", "F6", 1.05), ("73", "F7", 1.05), ("74", "F8", 1.05),
         ("75", "F9", 1.05), ("76", "F10", 1.05), ("95", "F11", 1.05), ("96", "F12", 1.05),
-        ("107", "Del", 1.05), ("power", "⏻", 1.05),
+        ("107", "Del", 1.05), ("119", "⏻", 1.05),
     ])
     + _row(1, [
         ("49", "^", 1.05),
@@ -123,7 +123,7 @@ LAYOUT.append(Key("116", "↓", _UP.row, _UP.x, _UP.width, 0.5, 0.5))
 # No LED under the space bar, and the power button is not part of the matrix.
 LAYOUT = [
     Key(key.code, key.legend, key.row, key.x, key.width, key.height, key.y_offset,
-        False if key.code in ("65", "power") else key.lit)
+        False if key.code == "65" else key.lit)
     for key in LAYOUT
 ]
 

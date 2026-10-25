@@ -80,8 +80,8 @@ bar has no LED on this model, so neither appears in the map.
 The window draws the German ISO layout from `src/ophis/layouts.py`: tall
 Enter with the ISO notch, right Shift resting above the arrow cluster, up/down
 sharing one key width, and the function row slightly shorter than the rest.
-The laptop has no PrtSc key: the last two keys are Del and the power button,
-and neither the power button nor the space bar has a matrix LED.
+The laptop has no PrtSc key: the last two keys are Del and the power button.
+The space bar has no matrix LED; the power button does.
 
 ## Frame protocol
 
