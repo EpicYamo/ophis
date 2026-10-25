@@ -64,8 +64,23 @@ sudo PYTHONPATH=src python3 -m razercc.cli info
 
 ## Usage
 
+From the checkout (no installation needed):
+
 ```bash
-razercc info                          # everything at a glance
+PYTHONPATH=src python3 -m razercc.cli info      # everything at a glance
+PYTHONPATH=src python3 -m razercc.cli --preview info
+```
+
+Or install it once to get the `razercc` command:
+
+```bash
+pipx install .        # or: python3 -m pip install --user .
+razercc info
+```
+
+Commands:
+
+```bash
 razercc get battery --json            # charge limit + live capacity
 razercc set power gaming
 razercc set fan 4200                  # or: razercc set fan auto

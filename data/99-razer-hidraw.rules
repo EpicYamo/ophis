@@ -1,13 +1,17 @@
-# Razer Blade 14 (2022) RZ09-0427 - 1532:028C
-# Kontrol arayuzune (vendor-defined usage page 0xFF00) oturum sahibinin
-# parolasiz erismesini saglar. Daemon root calisacaksa bu kural sadece
-# gelistirme/test icin gereklidir.
+# Razer Blade 14 (2022) RZ09-0427 - USB 1532:028C
 #
-# Kurulum:
+# Grants the active desktop session access to the vendor-defined HID control
+# interface (usage page 0xFF00) without a password prompt.
+#
+# Install:
 #   sudo cp 99-razer-hidraw.rules /etc/udev/rules.d/
-#   sudo udevadm control --reload-rules && sudo udevadm trigger
-#   # cihazi yeniden takmak gerekmez, kural aninda uygulanir
-#   # dogrulama:
-#   ls -l /dev/hidraw*   -> 1532:028c dugumu crw-rw-r--+ ... olmali
+#   sudo udevadm control --reload-rules
+#   sudo udevadm trigger
+#
+# Verify (the Razer node should now show a "+" ACL for your user):
+#   getfacl /dev/hidraw* 2>/dev/null | grep -A2 1532
+#
+# Remove:
+#   sudo rm /etc/udev/rules.d/99-razer-hidraw.rules
 
 KERNEL=="hidraw*", ATTRS{idVendor}=="1532", ATTRS{idProduct}=="028c", TAG+="uaccess", MODE="0660"
