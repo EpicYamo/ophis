@@ -70,10 +70,11 @@ back from the device, not assumed:
 ## M5 — Packaging
 
 - [x] User-level install: commands, desktop entry and icon in `~/.local`
-- [ ] Debian package (`debian/` or `nfpm`)
+- [x] Debian package (`make deb`, built from the checkout, no `debian/` tree)
+- [x] GitHub Actions: tests on push, package on every push, release on tags
+- [x] Tagged release with the `.deb` attached
 - [ ] Flatpak or AppImage build in CI
-- [ ] GitHub Actions: tests on push
-- [ ] Tagged release with changelog and screenshots
+- [ ] Screenshots in the README
 
 ## M6 — Beyond Synapse
 

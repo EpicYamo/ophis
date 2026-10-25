@@ -28,6 +28,9 @@ window into a background app with animations.
 - profile file at `~/.config/ophis/profile.json`, `save` and `apply` commands
 - autostart entry for the tray
 - `ophis animate`, `ophis temp`, `ophis autostart` commands
+- Debian package (`make deb`) with the commands, desktop entry, icon and udev
+  rule, plus a CI workflow that tests every push and publishes the package on
+  tags
 - new window: sidebar navigation, profile cards, live values
 
 ### Fixed

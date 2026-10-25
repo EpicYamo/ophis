@@ -59,6 +59,21 @@ acknowledged, and silently ignored.
 
 ## Install
 
+### Debian package
+
+Download `ophis_<version>_all.deb` from the
+[releases page](https://github.com/EpicYamo/ophis/releases) and install it:
+
+```bash
+sudo apt install ./ophis_0.2.0_all.deb
+```
+
+It installs `ophis`, `ophis-gui` and `ophis-tray`, the desktop entry, the icon
+and the udev rule, and pulls in the GTK/PyGObject dependencies. Build it
+yourself with `make deb`.
+
+### From a checkout
+
 ```bash
 git clone https://github.com/EpicYamo/ophis.git
 cd ophis

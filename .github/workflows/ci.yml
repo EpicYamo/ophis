@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-gi gir1.2-glib-2.0
+
+      - name: Unit tests
+        env:
+          PYTHONPATH: src
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Byte-compile
+        run: python3 -m compileall -q src
+
+  deb:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the package
+        run: bash packaging/build-deb.sh
+
+      - name: Inspect the package
+        run: |
+          dpkg-deb --info dist/ophis_*.deb
+          dpkg-deb --contents dist/ophis_*.deb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ophis-deb
+          path: dist/*.deb
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.deb
+          generate_release_notes: true
+          body: |
+            Debian package for Ophis.
+
+            ```bash
+            sudo apt install ./ophis_*.deb
+            ```
+
+            The package installs the commands, the desktop entry, the icon and
+            the udev rule for the Razer HID interface.

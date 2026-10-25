@@ -1,7 +1,7 @@
 PYTHON ?= python3
 export PYTHONPATH := src
 
-.PHONY: help test run tray preview cli udev install uninstall clean
+.PHONY: help test run tray preview cli udev install uninstall deb clean
 
 help:
 	@echo "make test     - run the unit tests (no hardware needed)"
@@ -10,6 +10,7 @@ help:
 	@echo "make preview  - start the GUI with a fake device"
 	@echo "make cli      - print device information"
 	@echo "make udev     - install the udev rule (sudo)"
+	@echo "make deb      - build dist/ophis_<version>_all.deb"
 	@echo "make install  - add the commands and a desktop entry (~/.local)"
 	@echo "make uninstall- remove them again"
 	@echo "make clean    - remove cached bytecode"
@@ -28,6 +29,9 @@ preview:
 
 cli:
 	$(PYTHON) -m ophis.cli info
+
+deb:
+	bash packaging/build-deb.sh
 
 udev:
 	sudo cp data/99-razer-hidraw.rules /etc/udev/rules.d/

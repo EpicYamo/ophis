@@ -15,7 +15,20 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-MAP_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "keymap_blade14.json"
+def _default_map_path() -> Path:
+    """Find the key map in a checkout and in an installed package."""
+    here = Path(__file__).resolve()
+    candidates = [
+        here.parent.parent / "data" / "keymap_blade14.json",          # /usr/lib/ophis/ophis -> /usr/lib/ophis/data
+        here.parent.parent.parent / "data" / "keymap_blade14.json",   # src/ophis -> <repo>/data
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return candidates[-1]
+
+
+MAP_PATH = _default_map_path()
 
 ROWS = 6
 COLS = 16
