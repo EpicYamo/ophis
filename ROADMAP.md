@@ -69,6 +69,7 @@ back from the device, not assumed:
 
 ## M5 — Packaging
 
+- [x] User-level install: commands, desktop entry and icon in `~/.local`
 - [ ] Debian package (`debian/` or `nfpm`)
 - [ ] Flatpak or AppImage build in CI
 - [ ] GitHub Actions: tests on push

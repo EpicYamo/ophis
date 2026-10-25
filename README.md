@@ -95,12 +95,18 @@ PYTHONPATH=src python3 -m ophis.cli info
 PYTHONPATH=src python3 -m ophis.cli temp
 ```
 
-Or install it once for the `ophis` command:
+Install the commands and a desktop entry (no root, everything under
+`~/.local`):
 
 ```bash
-pipx install .       # or: python3 -m pip install --user .
-ophis info
+make install         # ophis, ophis-gui, ophis-tray + app-grid icon
+make uninstall       # removes them again
 ```
+
+After that `ophis info` works from any directory and **Ophis** appears in the
+application grid; it opens the window with the tray already running, so the
+close button hides it instead of quitting. `make install` bakes the checkout
+path into the wrappers, so re-run it if you move the repository.
 
 ```bash
 ophis set power gaming

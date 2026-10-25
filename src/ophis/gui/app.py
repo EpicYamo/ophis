@@ -22,13 +22,14 @@ APPLICATION_ID = "io.github.epicyamo.Ophis"
 
 
 class OphisApp(Adw.Application):
-    def __init__(self, preview: bool = False, tray: bool = False) -> None:
+    def __init__(self, preview: bool = False, tray: bool = False, show: bool = False) -> None:
         super().__init__(
             application_id=APPLICATION_ID,
             flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
         )
         self.preview = preview
         self.want_tray = tray
+        self.show_on_start = show
         self.backend = None
         self.window: ControlWindow | None = None
         self.tray: Tray | None = None
@@ -74,7 +75,7 @@ class OphisApp(Adw.Application):
             self.window = ControlWindow(self, self.backend, tray_enabled=tray_ready)
 
         assert self.window is not None
-        if not (first and self.want_tray):
+        if not (first and self.want_tray) or self.show_on_start:
             self.window.present()
 
     # -- tray ---------------------------------------------------------------
@@ -138,8 +139,9 @@ def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv if argv is None else argv)
     preview = "--preview" in args
     tray = "--tray" in args
-    args = [arg for arg in args if arg not in ("--preview", "--tray")]
-    app = OphisApp(preview=preview, tray=tray)
+    show = "--show" in args
+    args = [arg for arg in args if arg not in ("--preview", "--tray", "--show")]
+    app = OphisApp(preview=preview, tray=tray, show=show)
 
     def stop(*_args) -> bool:
         app.quit_cleanly()
