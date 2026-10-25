@@ -57,9 +57,15 @@ class EffectTests(unittest.TestCase):
 
     def test_reference_defaults(self):
         wave = default_params("wave")
-        self.assertEqual((wave.angle, wave.speed), (0, 4))
+        self.assertEqual(wave.angle, 0)
+        self.assertAlmostEqual(wave.speed, 3.95, places=2)
         breathing = default_params("breathing")
-        self.assertEqual((breathing.speed, breathing.smooth), (12, 60))
+        # Percentages of the range that actually works: 0.2-8 speed and
+        # 8-120 smoothness, not the reference's 1-40 and 2-150.
+        self.assertGreaterEqual(breathing.speed, 0.2)
+        self.assertLessEqual(breathing.speed, 8.0)
+        self.assertGreaterEqual(breathing.smooth, 8.0)
+        self.assertLessEqual(breathing.smooth, 120.0)
         sparkle = default_params("sparkle")
         self.assertEqual((sparkle.speed, sparkle.density), (5, 8))
         lightning = default_params("lightning")
@@ -68,7 +74,8 @@ class EffectTests(unittest.TestCase):
             (5, 10, 2, 1),
         )
         wheel = default_params("wheel")
-        self.assertEqual((wheel.reverse, wheel.speed), (False, 4))
+        self.assertFalse(wheel.reverse)
+        self.assertAlmostEqual(wheel.speed, 3.95, places=2)
         flame = default_params("flame")
         self.assertEqual((flame.speed, flame.smooth), (5, 8))
         rain = default_params("rain")
@@ -81,8 +88,24 @@ class EffectTests(unittest.TestCase):
             self.assertTrue(effect.SETTINGS, name)
             for setting in effect.SETTINGS:
                 self.assertIn(
-                    setting.kind, ("slider", "switch", "choice", "colour", "palette", "zones")
+                    setting.kind,
+                    ("slider", "percent", "switch", "choice", "colour", "palette", "zone_colours"),
                 )
+
+    def test_wave_and_wheel_speeds_stay_at_or_below_twelve(self):
+        for name in ("wave", "wheel"):
+            params = default_params(name)
+            self.assertLessEqual(params.speed, 12.0)
+            self.assertGreater(params.speed, 0.0)
+
+    def test_percent_settings_stay_inside_their_range(self):
+        for effect_class in effects.EFFECTS.values():
+            for setting in effect_class.SETTINGS:
+                if setting.kind != "percent":
+                    continue
+                self.assertLess(setting.actual_low, setting.actual_high)
+                self.assertGreaterEqual(setting.default, 1)
+                self.assertLessEqual(setting.default, 100)
 
     def test_unknown_effect_raises(self):
         with self.assertRaises(ValueError):

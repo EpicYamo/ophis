@@ -7,17 +7,23 @@ The effects, their parameter ranges and their defaults come from
 [Better RGB](https://github.com/EpicYamo/Better-RGB-for-Tongfang-ITE8291), a C
 application written for an ITE8291 keyboard. The maths is ported directly:
 
-| Effect | Parameters (range, default) |
+| Effect | Parameters |
 | --- | --- |
-| Breathing | colour, speed 1–40 (12), smoothness 2–150 (60) |
-| Wave | angle 0–359° (0), speed 1–20 (4) |
+| Breathing | colour, speed 0.2–8, smoothness 8–120 (both as percentages) |
+| Wave | angle 0–359° (0), speed 0.5–12 (percentage) |
 | Sparkle | speed 1–10 (5), density 3–20 keys (8) |
-| Wheel | reverse (off), speed 1–20 (4) |
+| Wheel | reverse (off), speed 0.5–12 (percentage) |
 | Lightning | speed 1–10 (5), smoothness 1–20 (10), strike width 1–4 (2), concurrent strikes 1–4 (1) |
 | Flame | flicker speed 1–10 (5), smoothness 1–20 (8) |
 | Rain | fall speed 1–10 (5), density 1–5 (3), colour count 1–5 (1) |
 | Matrix | streak speed 1–10 (5), style (diagonal / columns / laser / ripple), density 1–5 (2), colour count 1–3 (1) |
-| Static | horizontal or vertical zones, 1–6 zones, one colour each |
+| Static | horizontal or vertical zones, 1–6 zones with one colour each, plus per-key paint |
+
+Where the reference exposed a raw number that means nothing to a human, the
+slider is a percentage over the range that actually works. Breathing above a
+speed of about 8 stops looking like breathing and starts flickering; wave and
+wheel above 12 are too fast to follow. The percentages map onto those ceilings
+instead of exposing the raw 1–40 and 1–20 the original showed.
 
 Each effect declares its controls as `SETTINGS` on the class, and the window
 builds the panel from that declaration. Adding a parameter to an effect is one
@@ -42,7 +48,10 @@ line; there is no separate UI code to keep in sync.
   reference keymap is not a perfect grid.
 - **Matrix** has four styles; density only affects the diagonal and laser
   styles, exactly as in the original panel.
-- **Static** splits rows (horizontal) or columns (vertical) into zones.
+- **Static** splits rows (horizontal) or columns (vertical) into zones. Its
+  per-key paint switch hands the board over to a manual 6x16 frame: drag to
+  paint, right-click to erase, Fill and Clear for the whole board. The frame is
+  stored in the profile and restored at startup.
 
 ## Frame rate
 

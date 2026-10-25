@@ -43,7 +43,8 @@ acknowledged, and silently ignored.
   rain, matrix (four styles) and zoned static, each with the same parameter
   ranges and defaults as the original. The firmware's spectrum, reactive and
   starlight effects are still available.
-- **Per-key editor** — paint individual cells of the 6x16 matrix.
+- **Per-key editor** — Static has a paint mode: drag over the keys to paint,
+  right-click to erase, and the result is stored in the profile.
 - **Lid logo** — on, off, breathing, with its state read back from the device.
 - **Battery care** — charge limit between 50% and 80%, stored in the controller
   and therefore independent of the operating system.
@@ -152,7 +153,7 @@ frame -> 6 x 0x03/0x0B (one per row, 48 colour bytes)
 | Flame | flicker speed, smoothness |
 | Rain | fall speed, density, colour count |
 | Matrix | streak speed, style (diagonal / columns / laser / ripple), density, colour count |
-| Static | horizontal or vertical zones with one colour each |
+| Static | horizontal or vertical zones with one colour each, plus per-key painting |
 
 Selecting an effect builds its settings panel from the effect's own
 declaration, so only the controls that matter appear — the same idea as the

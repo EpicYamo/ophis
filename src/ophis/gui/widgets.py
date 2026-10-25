@@ -32,6 +32,7 @@ class KeyboardView(Gtk.Widget):
         self.set_vexpand(True)
         self.matrix: Matrix = blank()
         self.on_cell = None
+        self.on_unmapped = None
         self._selected: tuple[int, int] | None = None
         self._drag_start = (0.0, 0.0)
         self._last_painted: tuple[int, int] | None = None
@@ -93,7 +94,11 @@ class KeyboardView(Gtk.Widget):
                 left, top, key_w, key_h = self._key_rect(key, unit, origin_x, origin_y)
                 if left <= x <= left + key_w and top <= y <= top + key_h:
                     cell = self.mapping.get(key.id)
-                    return (cell[0], cell[1]) if cell else None
+                    if cell is None:
+                        if self.on_unmapped is not None:
+                            self.on_unmapped(key.id)
+                        return None
+                    return (cell[0], cell[1])
             return None
         col = int((x - origin_x) / (unit))
         row = int((y - origin_y) / (unit))
@@ -195,6 +200,10 @@ class KeyboardView(Gtk.Widget):
             snapshot.push_rounded_clip(rounded)
             snapshot.append_color(colour, rect)
             snapshot.pop()
+
+            edge = Gdk.RGBA()
+            edge.parse("rgba(0,0,0,0.55)")
+            snapshot.append_border(rounded, [1.0, 1.0, 1.5, 1.0], [edge] * 4)
 
             if self._selected is not None and cell == list(self._selected):
                 accent = Gdk.RGBA()

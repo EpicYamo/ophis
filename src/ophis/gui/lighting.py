@@ -12,7 +12,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Adw, Gdk, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
 from .. import animations, profile, protocol as p  # noqa: E402
 from ..animations import AnimationEngine, Params  # noqa: E402
@@ -53,6 +53,7 @@ class LightingPage(Gtk.Box):
         self._syncing = False
         self._frame = animations.blank()
         self._paint_mode = False
+        self._custom_save = 0
         self._settings_widgets: dict[str, Gtk.Widget] = {}
         self._current = "static"
 
@@ -113,16 +114,24 @@ class LightingPage(Gtk.Box):
         self.keyboard.set_hexpand(True)
         self.keyboard.set_vexpand(True)
         self.keyboard.on_cell = self._on_cell_clicked
+        self.keyboard.on_unmapped = self._on_unmapped_key
         preview_frame.set_child(self.keyboard)
         box.append(preview_frame)
 
+        self.map_hint = Gtk.Label(
+            label="Key positions are not mapped yet: run "
+            "`PYTHONPATH=src python3 tools/mapper.py` once to get the real keyboard layout.",
+            xalign=0,
+            wrap=True,
+        )
+        self.map_hint.add_css_class("muted")
+        self.map_hint.set_visible(not self.keyboard.mapping)
+        box.append(self.map_hint)
+
         controls = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        self.paint_switch = Gtk.Switch()
-        self.paint_switch.set_valign(Gtk.Align.CENTER)
-        self.paint_switch.connect("notify::active", self._on_paint_mode)
-        paint_label = Gtk.Label(label="Paint keys")
-        controls.append(paint_label)
-        controls.append(self.paint_switch)
+        self.paint_hint = Gtk.Label(label="Drag to paint, right-click to erase")
+        self.paint_hint.add_css_class("muted")
+        controls.append(self.paint_hint)
 
         self.brush_button = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog())
         self.brush_button.set_valign(Gtk.Align.CENTER)
@@ -184,6 +193,8 @@ class LightingPage(Gtk.Box):
     # -- persistence --------------------------------------------------------
     def _stored_effect(self) -> str:
         stored = self.profile.get("lighting", {}).get("animation")
+        if stored == "custom":
+            return "static"
         return stored if stored in animations.EFFECTS else "static"
 
     def _stored_values(self, name: str) -> dict:
@@ -202,6 +213,7 @@ class LightingPage(Gtk.Box):
             "reverse": params.reverse,
             "style": params.style,
             "horizontal": params.horizontal,
+            "paint": params.paint,
             "zone_count": params.zone_count,
             "palette_count": params.palette_count,
             "palette": [list(c) for c in params.palette],
@@ -217,6 +229,7 @@ class LightingPage(Gtk.Box):
         self._select_effect(row.get_name())
 
     def _select_effect(self, name: str) -> None:
+        self._flush_custom()
         self._current = name
         for index, (row_name, _label) in enumerate(HOST_EFFECTS):
             if row_name == name:
@@ -236,6 +249,21 @@ class LightingPage(Gtk.Box):
 
         self._build_settings(name, params)
         self.params = params
+        self._apply_paint_mode(name, params)
+
+    def _apply_paint_mode(self, name: str, params: Params) -> None:
+        paint = name == "static" and bool(getattr(params, "paint", False))
+        self._paint_mode = paint
+        for widget in (self.brush_button, self.paint_hint, self.fill_button, self.clear_button):
+            widget.set_visible(paint)
+
+        if paint:
+            if self.engine is not None:
+                self.engine.stop()
+            self._frame = self._load_custom_frame()
+            self.keyboard.set_matrix(self._frame)
+            self._write_frame()
+            return
 
         if self.engine is not None:
             self.engine.start(name, params)
@@ -270,6 +298,28 @@ class LightingPage(Gtk.Box):
                 "value-changed", self._on_slider, name, setting.key, params
             )
             row.add_suffix(scale)
+            self._settings_widgets[setting.key] = scale
+
+        elif setting.kind == "percent":
+            actual = float(getattr(params, setting.key))
+            span = setting.actual_high - setting.actual_low
+            percent = 1.0 + (actual - setting.actual_low) / span * 99.0
+            scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 100, 1)
+            scale.set_value(round(percent))
+            scale.set_size_request(280, -1)
+            scale.set_draw_value(False)
+            value_label = Gtk.Label(label=f"{int(round(percent))}%")
+            value_label.set_size_request(48, -1)
+            scale.connect(
+                "value-changed",
+                self._on_percent,
+                name,
+                setting,
+                params,
+                value_label,
+            )
+            row.add_suffix(scale)
+            row.add_suffix(value_label)
             self._settings_widgets[setting.key] = scale
 
         elif setting.kind == "switch":
@@ -357,8 +407,27 @@ class LightingPage(Gtk.Box):
             return
         self._changed(name, params)
 
+    def _on_percent(
+        self,
+        scale: Gtk.Scale,
+        name: str,
+        setting,
+        params: Params,
+        value_label: Gtk.Label,
+    ) -> None:
+        percent = float(scale.get_value())
+        span = setting.actual_high - setting.actual_low
+        actual = setting.actual_low + (percent - 1.0) / 99.0 * span
+        value_label.set_text(f"{int(percent)}%")
+        setattr(params, setting.key, round(actual, 2))
+        self._changed(name, params, restart=(name == "static"))
+
     def _on_switch(self, switch: Gtk.Switch, _param, name: str, key: str, params: Params) -> None:
         setattr(params, key, bool(switch.get_active()))
+        if key == "paint":
+            self._remember(name, params)
+            self._apply_paint_mode(name, params)
+            return
         self._changed(name, params)
 
     def _on_choice(self, combo: Gtk.ComboBoxText, name: str, key: str, params: Params) -> None:
@@ -386,23 +455,45 @@ class LightingPage(Gtk.Box):
         params.zone_colours[index] = self._colour_of(button)
         self._changed(name, params, restart=True)
 
+    def _on_unmapped_key(self, _key_id: str) -> None:
+        self.window.toast("This key has no matrix cell yet; run the mapper")
+
     # -- preview / painting -------------------------------------------------
     def _on_frame(self, matrix) -> None:
         self._frame = matrix
         self.keyboard.set_matrix(matrix)
         return False
 
-    def _on_paint_mode(self, switch: Gtk.Switch, _param) -> None:
-        self._paint_mode = bool(switch.get_active())
-        if not self._paint_mode:
-            return
-        if self.engine is not None:
-            self.engine.stop()
-        self._frame = animations.blank()
-        self.keyboard.set_matrix(self._frame)
-        self._activate_frame()
+    def _load_custom_frame(self):
+        stored = self.profile.get("lighting", {}).get("custom")
+        matrix = animations.blank()
+        if isinstance(stored, list):
+            for index, colour in enumerate(stored[: animations.ROWS * animations.COLS]):
+                if isinstance(colour, list) and len(colour) == 3:
+                    matrix[index // animations.COLS][index % animations.COLS] = (
+                        int(colour[0]),
+                        int(colour[1]),
+                        int(colour[2]),
+                    )
+        return matrix
 
-    def _activate_frame(self) -> None:
+    def _touch_custom(self) -> None:
+        if self._custom_save:
+            GLib.source_remove(self._custom_save)
+        self._custom_save = GLib.timeout_add(600, self._flush_custom)
+
+    def _flush_custom(self) -> bool:
+        self._custom_save = 0
+        if not self._paint_mode:
+            return False
+        self.profile.setdefault("lighting", {})["custom"] = [
+            list(cell) for row in self._frame for cell in row
+        ]
+        self.profile["lighting"]["animation"] = "custom"
+        self.window.save_profile()
+        return False
+
+    def _write_frame(self) -> None:
         try:
             self.backend.activate_custom_frame()
             self.backend.write_frame(self._frame)
@@ -423,18 +514,21 @@ class LightingPage(Gtk.Box):
             self.backend.write_frame(self._frame)
         except Exception as exc:
             self.window.toast(str(exc))
+        self._touch_custom()
 
     def _on_fill(self, *_args) -> None:
         rgba = self.brush_button.get_rgba()
         colour = (int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255))
         self._frame = [[colour for _ in range(animations.COLS)] for _ in range(animations.ROWS)]
         self.keyboard.set_matrix(self._frame)
-        self._activate_frame()
+        self._write_frame()
+        self._touch_custom()
 
     def _on_clear(self, *_args) -> None:
         self._frame = animations.blank()
         self.keyboard.set_matrix(self._frame)
-        self._activate_frame()
+        self._write_frame()
+        self._touch_custom()
 
     def _on_brightness(self, scale: Gtk.Scale) -> None:
         if self._syncing:

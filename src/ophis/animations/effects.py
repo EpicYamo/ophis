@@ -62,19 +62,23 @@ class Setting:
 
     key: str
     label: str
-    kind: str = "slider"  # slider | switch | choice | colour | palette
+    kind: str = "slider"  # slider | percent | switch | choice | colour | palette
     low: int = 0
     high: int = 0
     step: int = 1
     default: Any = 0
     choices: tuple[str, ...] = ()
+    # For "percent": the UI shows 1..100 and the stored value is scaled into
+    # this range. Used where the raw number is meaningless to a human.
+    actual_low: float = 0.0
+    actual_high: float = 1.0
 
 
 @dataclass
 class Params:
     colour: Colour = (0, 120, 255)
-    speed: int = 5
-    smooth: int = 10
+    speed: float = 5.0
+    smooth: float = 10.0
     angle: int = 0
     density: int = 3
     width: int = 2
@@ -82,6 +86,7 @@ class Params:
     reverse: bool = False
     style: int = 0
     horizontal: bool = True
+    paint: bool = False
     zone_count: int = 1
     palette_count: int = 1
     palette: list[Colour] = field(default_factory=lambda: list(RAIN_PALETTE))
@@ -182,10 +187,13 @@ class Effect:
 class Breathing(Effect):
     name = "breathing"
     label = "Breathing"
+    # The reference exposed 1-40 and 2-150. Anything above ~8 speed flickers
+    # instead of breathing, and the first few smoothness levels are visibly
+    # stepped, so both are percentages of the range that works.
     SETTINGS = (
         Setting("colour", "Colour", "colour", default=(0, 120, 255)),
-        Setting("speed", "Speed", "slider", 1, 40, 1, 12),
-        Setting("smooth", "Smoothness", "slider", 2, 150, 1, 60),
+        Setting("speed", "Speed", "percent", 1, 100, 1, 40, (), 0.2, 8.0),
+        Setting("smooth", "Smoothness", "percent", 1, 100, 1, 45, (), 8.0, 120.0),
     )
 
     def render(self, dt: float) -> Matrix:
@@ -201,7 +209,7 @@ class Wave(Effect):
     label = "Wave"
     SETTINGS = (
         Setting("angle", "Angle (degrees)", "slider", 0, 359, 1, 0),
-        Setting("speed", "Speed", "slider", 1, 20, 1, 4),
+        Setting("speed", "Speed", "percent", 1, 100, 1, 30, (), 0.5, 12.0),
     )
 
     def render(self, dt: float) -> Matrix:
@@ -222,7 +230,7 @@ class Wheel(Effect):
     label = "Wheel"
     SETTINGS = (
         Setting("reverse", "Reverse direction", "switch", default=False),
-        Setting("speed", "Speed", "slider", 1, 20, 1, 4),
+        Setting("speed", "Speed", "percent", 1, 100, 1, 30, (), 0.5, 12.0),
     )
 
     def __init__(self, params: Params | None = None) -> None:
@@ -611,6 +619,7 @@ class Static(Effect):
         ),
         Setting("zone_count", "Zone count", "slider", 1, 6, 1, 1),
         Setting("zone_colours", "Zone colours", "zone_colours", 1, 6, 1, 1, STATIC_PALETTE),
+        Setting("paint", "Per-key paint", "switch", default=False),
     )
 
     def __init__(self, params: Params | None = None) -> None:
@@ -664,6 +673,10 @@ def default_params(name: str) -> Params:
     for setting in effect_class.SETTINGS:
         if setting.kind == "slider":
             setattr(params, setting.key, setting.default)
+        elif setting.kind == "percent":
+            percent = float(setting.default) / 100.0
+            value = setting.actual_low + percent * (setting.actual_high - setting.actual_low)
+            setattr(params, setting.key, round(value, 2))
         elif setting.kind in ("switch",):
             setattr(params, setting.key, bool(setting.default))
         elif setting.kind == "choice":

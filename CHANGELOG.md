@@ -16,7 +16,9 @@ window into a background app with animations.
 - host-rendered effects at 24 fps, ported from Better RGB: breathing, wave,
   sparkle, wheel, lightning, flame, rain, matrix and zoned static, with the
   original parameter ranges and defaults
-- per-effect settings panel generated from each effect's declaration
+- per-effect settings panel generated from each effect's declaration;
+  speeds that had unusable raw ranges are percentages over the range that
+  works (breathing 0.2-8, wave and wheel 0.5-12)
 - paint mode that activates the custom frame before writing cells
 - per-key matrix preview with paint mode
 - fan curves driven by the hottest kernel sensor, with a draggable editor
