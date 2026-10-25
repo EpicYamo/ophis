@@ -16,7 +16,7 @@ from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
 from .. import animations, profile, protocol as p  # noqa: E402
 from ..animations import AnimationEngine, Params  # noqa: E402
-from .widgets import KeyboardView, paint_cell  # noqa: E402
+from .widgets import KeyboardView, disable_scale_scroll, paint_cell  # noqa: E402
 
 HOST_EFFECTS = [
     ("static", "Static"),
@@ -158,6 +158,7 @@ class LightingPage(Gtk.Box):
         self.brightness = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 255, 5)
         self.brightness.set_size_request(190, -1)
         self.brightness.set_draw_value(True)
+        disable_scale_scroll(self.brightness)
         self.brightness.connect("value-changed", self._on_brightness)
         controls.append(self.brightness)
 
@@ -294,6 +295,7 @@ class LightingPage(Gtk.Box):
             scale.set_value(getattr(params, setting.key))
             scale.set_size_request(280, -1)
             scale.set_draw_value(True)
+            disable_scale_scroll(scale)
             scale.connect(
                 "value-changed", self._on_slider, name, setting.key, params
             )
@@ -308,6 +310,7 @@ class LightingPage(Gtk.Box):
             scale.set_value(round(percent))
             scale.set_size_request(280, -1)
             scale.set_draw_value(False)
+            disable_scale_scroll(scale)
             value_label = Gtk.Label(label=f"{int(round(percent))}%")
             value_label.set_size_request(48, -1)
             scale.connect(
@@ -352,6 +355,7 @@ class LightingPage(Gtk.Box):
             count.set_value(params.palette_count)
             count.set_size_request(120, -1)
             count.set_draw_value(True)
+            disable_scale_scroll(count)
             count.connect("value-changed", self._on_palette_count, name, params)
             box.append(count)
             for index in range(setting.high):

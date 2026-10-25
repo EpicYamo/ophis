@@ -15,7 +15,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from .. import desktop, profile, protocol as p, sysinfo, thermal  # noqa: E402
-from .widgets import CurveEditor  # noqa: E402
+from .widgets import CurveEditor, disable_scale_scroll  # noqa: E402
 
 PROFILE_CARDS = [
     ("Balanced", p.PowerMode.BALANCED, "power-profile-balanced-symbolic"),
@@ -222,6 +222,7 @@ class ControlWindow(Adw.ApplicationWindow):
         scale.set_hexpand(True)
         scale.set_size_request(240, -1)
         scale.set_draw_value(True)
+        disable_scale_scroll(scale)
         return scale
 
     @staticmethod

@@ -354,6 +354,17 @@ class CurveEditor(Gtk.Widget):
             snapshot.pop()
 
 
+def disable_scale_scroll(widget) -> None:
+    """Stop a slider from eating the wheel event while the page scrolls.
+
+    GtkRange installs its own scroll controller; turning its propagation phase
+    off leaves the event for the surrounding scrolled window.
+    """
+    for controller in widget.observe_controllers():
+        if isinstance(controller, Gtk.EventControllerScroll):
+            controller.set_propagation_phase(Gtk.PropagationPhase.NONE)
+
+
 def paint_cell(matrix: Matrix, row: int, col: int, colour) -> Matrix:
     """Return a copy of `matrix` with one cell set, for the per-key editor."""
     updated = [list(line) for line in matrix]
@@ -361,4 +372,4 @@ def paint_cell(matrix: Matrix, row: int, col: int, colour) -> Matrix:
     return updated
 
 
-__all__ = ["CurveEditor", "KeyboardView", "paint_cell"]
+__all__ = ["CurveEditor", "KeyboardView", "disable_scale_scroll", "paint_cell"]

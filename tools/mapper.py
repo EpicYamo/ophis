@@ -35,6 +35,7 @@ class Mapper(Gtk.ApplicationWindow):
     def __init__(self, app: Gtk.Application, backend) -> None:
         super().__init__(application=app, title="Ophis matrix mapper")
         self.set_default_size(1180, 620)
+        self.set_titlebar(Gtk.HeaderBar())
         self.backend = backend
         self.mapping = layouts.load_map()
         self.unused = layouts.load_unused()
