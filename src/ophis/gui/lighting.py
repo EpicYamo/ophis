@@ -1,8 +1,12 @@
-"""Lighting page: effect list, live preview, and a panel per effect.
+"""Lighting page: host animations on one side, the keyboard's own on the other.
 
-The panel is generated from each effect's `SETTINGS`, which is what makes the
-effect settings behave like the reference app: only the controls that matter
-for the selected effect appear, with the original ranges and defaults.
+The custom side is generated from each effect's `SETTINGS`, which is what makes
+the effect settings behave like the reference app: only the controls that
+matter for the selected effect appear, with the original ranges and defaults.
+
+The device side lists the effects the embedded controller renders itself. The
+controller never reports its frames back, so that side shows no matrix preview
+and only the parameters the firmware accepts for the selected effect.
 """
 
 from __future__ import annotations
@@ -29,21 +33,45 @@ HOST_EFFECTS = [
     ("rain", "Rain"),
     ("matrix", "Matrix"),
 ]
-FIRMWARE_EFFECTS = [
-    ("None", None),
-    ("Off", p.Effect.OFF),
-    ("Static", p.Effect.STATIC),
-    ("Breathing", p.Effect.BREATHING),
-    ("Spectrum", p.Effect.SPECTRUM),
-    ("Wave", p.Effect.WAVE),
-    ("Reactive", p.Effect.REACTIVE),
-    ("Starlight", p.Effect.STARLIGHT),
+
+DEVICE_EFFECTS = [
+    ("off", "Off", p.Effect.OFF),
+    ("static", "Static", p.Effect.STATIC),
+    ("breathing", "Breathing", p.Effect.BREATHING),
+    ("spectrum", "Spectrum", p.Effect.SPECTRUM),
+    ("wave", "Wave", p.Effect.WAVE),
+    ("reactive", "Reactive", p.Effect.REACTIVE),
+    ("starlight", "Starlight", p.Effect.STARLIGHT),
 ]
+DEVICE_LABELS = {name: label for name, label, _effect in DEVICE_EFFECTS}
+DEVICE_IDS = {name: effect for name, _label, effect in DEVICE_EFFECTS}
+
+DEVICE_SETTINGS = {
+    "off": (),
+    "static": ("colour",),
+    "breathing": ("colour",),
+    "spectrum": (),
+    "wave": ("direction",),
+    "reactive": ("colour", "speed"),
+    "starlight": ("colour", "speed"),
+}
+DEVICE_SPEED_MAX = {"reactive": 4, "starlight": 3}
+
+DEVICE_NOTES = {
+    "off": "The backlight is off. The brightness slider above still applies.",
+    "static": "One constant colour for the whole keyboard.",
+    "breathing": "The keyboard fades a single colour in and out.",
+    "spectrum": "The controller cycles through the full spectrum on its own.",
+    "wave": "A band of colour sweeps across the keyboard.",
+    "reactive": "Keys light up while you type. The controller handles it, so no "
+    "input permissions are needed.",
+    "starlight": "A dark background with random keys twinkling.",
+}
 
 
 class LightingPage(Gtk.Box):
     def __init__(self, window) -> None:
-        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=18)
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         self.set_margin_top(18)
         self.set_margin_bottom(18)
         self.set_margin_start(18)
@@ -54,29 +82,65 @@ class LightingPage(Gtk.Box):
         self.state = window.state
         self.profile = window.profile
         self._syncing = False
+        self._mode = "custom"
         self._frame = animations.blank()
         self._paint_mode = False
         self._custom_save = 0
         self._settings_widgets: dict[str, Gtk.Widget] = {}
         self._logo_healed = False
         self._current = "static"
+        self._device_values = self._stored_device()
+        self._device_name = self._device_values["effect"]
 
         device = getattr(self.backend, "device", None)
         self.engine = AnimationEngine(device, on_frame=self._on_frame) if device else None
 
-        self.append(self._build_list())
-        self.append(self._build_panel())
+        self.stack = Gtk.Stack()
+        self.stack.set_vexpand(True)
+        self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.stack.set_transition_duration(150)
+        self.stack.add_titled(self._build_custom_page(), "custom", "Custom effects")
+        self.stack.add_titled(self._build_device_page(), "device", "Device effects")
+        self.stack.connect("notify::visible-child-name", self._on_mode_changed)
 
-        self._select_effect(self._stored_effect())
+        self.append(self._build_switcher())
+        self.append(self.stack)
+        self.append(self._build_footer())
 
-    # -- left column --------------------------------------------------------
-    def _build_list(self) -> Gtk.Widget:
+        stored_mode = self.profile.get("lighting", {}).get("mode", "custom")
+        self._activate_mode("device" if stored_mode == "device" else "custom")
+
+    # -- top bar ------------------------------------------------------------
+    def _build_switcher(self) -> Gtk.Widget:
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        switcher = Gtk.StackSwitcher()
+        switcher.set_stack(self.stack)
+        switcher.set_halign(Gtk.Align.START)
+        box.append(switcher)
+        return box
+
+    # -- custom page --------------------------------------------------------
+    def _build_custom_page(self) -> Gtk.Widget:
+        page = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=18)
+        page.append(self._build_custom_list())
+        page.append(self._build_custom_panel())
+        return page
+
+    def _build_custom_list(self) -> Gtk.Widget:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         box.set_size_request(220, -1)
 
         heading = Gtk.Label(label="EFFECTS", xalign=0)
         heading.add_css_class("section-title")
         box.append(heading)
+
+        note = Gtk.Label(
+            label="Rendered by Ophis and sent to the keyboard frame by frame.",
+            xalign=0,
+            wrap=True,
+        )
+        note.add_css_class("muted")
+        box.append(note)
 
         self.listbox = Gtk.ListBox()
         self.listbox.add_css_class("effect-list")
@@ -97,55 +161,9 @@ class LightingPage(Gtk.Box):
         spacer = Gtk.Box()
         spacer.set_vexpand(True)
         box.append(spacer)
-
-        firmware = Gtk.Label(label="KEYBOARD EFFECTS", xalign=0)
-        firmware.add_css_class("section-title")
-        box.append(firmware)
-        note = Gtk.Label(
-            label="Rendered by the keyboard itself: no CPU cost, fewer parameters.",
-            xalign=0,
-            wrap=True,
-        )
-        note.add_css_class("muted")
-        box.append(note)
-        self.firmware_row = Adw.ComboRow(title="Effect")
-        self.firmware_row.set_model(Gtk.StringList.new([name for name, _ in FIRMWARE_EFFECTS]))
-        self.firmware_row.connect("notify::selected", self._on_firmware_selected)
-        box.append(self.firmware_row)
-
-        self.firmware_controls = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        self.firmware_controls.set_homogeneous(False)
-        self.fw_colour = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog())
-        self.fw_colour.set_valign(Gtk.Align.CENTER)
-        self.fw_colour.set_tooltip_text("Effect colour")
-        colour = Gdk.RGBA()
-        colour.parse("#ffffff")
-        self.fw_colour.set_rgba(colour)
-        self.fw_colour.connect("notify::rgba", self._on_firmware_option)
-        self.firmware_controls.append(self.fw_colour)
-
-        self.fw_speed = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 4, 1)
-        self.fw_speed.set_value(2)
-        self.fw_speed.set_draw_value(True)
-        self.fw_speed.set_size_request(110, -1)
-        self.fw_speed.set_tooltip_text("Reactive and starlight speed")
-        disable_scale_scroll(self.fw_speed)
-        self.fw_speed.connect("value-changed", self._on_firmware_option)
-        self.firmware_controls.append(self.fw_speed)
-
-        self.fw_direction = Gtk.ComboBoxText()
-        self.fw_direction.append_text("Left to right")
-        self.fw_direction.append_text("Right to left")
-        self.fw_direction.set_active(0)
-        self.fw_direction.set_tooltip_text("Wave direction")
-        self.fw_direction.connect("changed", self._on_firmware_option)
-        self.firmware_controls.append(self.fw_direction)
-        self.firmware_controls.set_visible(False)
-        box.append(self.firmware_controls)
         return box
 
-    # -- right column -------------------------------------------------------
-    def _build_panel(self) -> Gtk.Widget:
+    def _build_custom_panel(self) -> Gtk.Widget:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         box.set_hexpand(True)
 
@@ -193,16 +211,6 @@ class LightingPage(Gtk.Box):
         spacer = Gtk.Box()
         spacer.set_hexpand(True)
         controls.append(spacer)
-
-        brightness_label = Gtk.Label(label="Brightness")
-        controls.append(brightness_label)
-        self.brightness = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 255, 5)
-        self.brightness.set_size_request(190, -1)
-        self.brightness.set_draw_value(True)
-        disable_scale_scroll(self.brightness)
-        self.brightness.connect("value-changed", self._on_brightness)
-        controls.append(self.brightness)
-
         box.append(controls)
 
         settings_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -221,16 +229,188 @@ class LightingPage(Gtk.Box):
         sw.set_child(settings_frame)
         sw.set_vexpand(True)
         box.append(sw)
+        return box
 
-        logo_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        logo_row.append(Gtk.Label(label="Lid logo"))
+    # -- device page --------------------------------------------------------
+    def _build_device_page(self) -> Gtk.Widget:
+        page = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=18)
+
+        left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        left.set_size_request(220, -1)
+
+        heading = Gtk.Label(label="DEVICE EFFECTS", xalign=0)
+        heading.add_css_class("section-title")
+        left.append(heading)
+
+        note = Gtk.Label(
+            label="Rendered by the keyboard controller: no CPU cost, no input "
+            "permissions and fewer parameters.",
+            xalign=0,
+            wrap=True,
+        )
+        note.add_css_class("muted")
+        left.append(note)
+
+        self.device_listbox = Gtk.ListBox()
+        self.device_listbox.add_css_class("effect-list")
+        self.device_listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        for name, label, _effect in DEVICE_EFFECTS:
+            row = Gtk.ListBoxRow()
+            row.set_name(name)
+            text = Gtk.Label(label=label, xalign=0)
+            text.set_margin_top(10)
+            text.set_margin_bottom(10)
+            text.set_margin_start(14)
+            text.set_margin_end(14)
+            row.set_child(text)
+            self.device_listbox.append(row)
+        self.device_listbox.connect("row-selected", self._on_device_row_selected)
+        left.append(self.device_listbox)
+
+        spacer = Gtk.Box()
+        spacer.set_vexpand(True)
+        left.append(spacer)
+        page.append(left)
+
+        right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        right.set_hexpand(True)
+
+        self.device_title = Gtk.Label(label="Settings", xalign=0)
+        self.device_title.add_css_class("effect-title")
+        right.append(self.device_title)
+
+        self.device_note = Gtk.Label(label="", xalign=0, wrap=True)
+        self.device_note.add_css_class("muted")
+        right.append(self.device_note)
+
+        self.device_settings_box = Gtk.ListBox()
+        self.device_settings_box.add_css_class("boxed-list")
+        self.device_settings_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        settings_frame = Gtk.Frame()
+        settings_frame.add_css_class("settings")
+        settings_frame.set_child(self.device_settings_box)
+        right.append(settings_frame)
+
+        spacer = Gtk.Box()
+        spacer.set_vexpand(True)
+        right.append(spacer)
+
+        page.append(right)
+        return page
+
+    def _build_device_settings(self, name: str) -> None:
+        while self.device_settings_box.get_first_child() is not None:
+            self.device_settings_box.remove(self.device_settings_box.get_first_child())
+
+        label = DEVICE_LABELS[name]
+        self.device_title.set_text(label)
+        self.device_note.set_text(DEVICE_NOTES[name])
+
+        keys = DEVICE_SETTINGS[name]
+        if not keys:
+            row = Adw.ActionRow(title="No settings")
+            row.set_subtitle("This effect has nothing to configure.")
+            row.set_activatable(False)
+            self.device_settings_box.append(row)
+            return
+
+        if "colour" in keys:
+            row = Adw.ActionRow(title="Colour")
+            row.set_activatable(False)
+            button = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog())
+            button.set_valign(Gtk.Align.CENTER)
+            self._set_button_colour(button, self._device_values["colour"])
+            button.connect("notify::rgba", self._on_device_colour)
+            row.add_suffix(button)
+            self.device_settings_box.append(row)
+
+        if "speed" in keys:
+            high = DEVICE_SPEED_MAX.get(name, 4)
+            speed = max(1, min(high, int(self._device_values["speed"])))
+            self._device_values["speed"] = speed
+            row = Adw.ActionRow(title="Speed")
+            row.set_activatable(False)
+            scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, high, 1)
+            scale.set_value(speed)
+            scale.set_size_request(280, -1)
+            scale.set_draw_value(True)
+            disable_scale_scroll(scale)
+            scale.connect("value-changed", self._on_device_speed, name)
+            row.add_suffix(scale)
+            self.device_settings_box.append(row)
+
+        if "direction" in keys:
+            row = Adw.ActionRow(title="Direction")
+            row.set_activatable(False)
+            combo = Gtk.ComboBoxText()
+            combo.append_text("Left to right")
+            combo.append_text("Right to left")
+            combo.set_active(0 if int(self._device_values["direction"]) == 1 else 1)
+            combo.connect("changed", self._on_device_direction)
+            row.add_suffix(combo)
+            self.device_settings_box.append(row)
+
+    # -- footer -------------------------------------------------------------
+    def _build_footer(self) -> Gtk.Widget:
+        frame = Gtk.Frame()
+        frame.add_css_class("settings")
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+
+        box.append(Gtk.Label(label="Brightness"))
+        self.brightness = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 255, 5)
+        self.brightness.set_size_request(220, -1)
+        self.brightness.set_draw_value(True)
+        disable_scale_scroll(self.brightness)
+        self.brightness.connect("value-changed", self._on_brightness)
+        box.append(self.brightness)
+
+        spacer = Gtk.Box()
+        spacer.set_hexpand(True)
+        box.append(spacer)
+
+        box.append(Gtk.Label(label="Lid logo"))
         self.logo_combo = Gtk.ComboBoxText()
         for option in ("Off", "On", "Breathing"):
             self.logo_combo.append_text(option)
         self.logo_combo.connect("changed", self._on_logo_changed)
-        logo_row.append(self.logo_combo)
-        box.append(logo_row)
-        return box
+        box.append(self.logo_combo)
+
+        frame.set_child(box)
+        return frame
+
+    # -- mode ---------------------------------------------------------------
+    def _activate_mode(self, mode: str) -> None:
+        self._mode = mode
+        self._syncing = True
+        try:
+            self.stack.set_visible_child_name(mode)
+        finally:
+            self._syncing = False
+
+        if mode == "device":
+            self._flush_custom()
+            if self.engine is not None:
+                self.engine.stop()
+            self._select_device(self._device_values["effect"], apply=True)
+        else:
+            self._select_effect(self._stored_effect())
+
+    def _on_mode_changed(self, stack: Gtk.Stack, _param) -> None:
+        if self._syncing:
+            return
+        mode = stack.get_visible_child_name()
+        if mode not in ("custom", "device"):
+            return
+        self._mode = mode
+        self.profile.setdefault("lighting", {})["mode"] = mode
+        self.window.save_profile()
+        if mode == "device":
+            self._flush_custom()
+            if self.engine is not None:
+                self.engine.stop()
+            self._select_device(self._device_values["effect"], apply=True)
+        else:
+            self._select_effect(self._current)
 
     # -- persistence --------------------------------------------------------
     def _stored_effect(self) -> str:
@@ -242,6 +422,36 @@ class LightingPage(Gtk.Box):
     def _stored_values(self, name: str) -> dict:
         data = self.profile.get("lighting", {}).get("animations", {}).get(name, {})
         return data if isinstance(data, dict) else {}
+
+    def _stored_device(self) -> dict:
+        lighting = self.profile.get("lighting", {})
+        data = lighting.get("device")
+        if not isinstance(data, dict):
+            data = {}
+        name = str(data.get("effect", lighting.get("effect", "static")))
+        if name not in DEVICE_LABELS:
+            name = "static"
+        colour = data.get("colour", lighting.get("colour", (255, 255, 255)))
+        try:
+            colour = tuple(max(0, min(255, int(channel))) for channel in colour)[:3]
+        except (TypeError, ValueError):
+            colour = (255, 255, 255)
+        if len(colour) != 3:
+            colour = (255, 255, 255)
+        try:
+            speed = max(1, min(4, int(data.get("speed", lighting.get("speed", 2)))))
+        except (TypeError, ValueError):
+            speed = 2
+        try:
+            direction = 2 if int(data.get("direction", lighting.get("direction", 1))) == 2 else 1
+        except (TypeError, ValueError):
+            direction = 1
+        return {
+            "effect": name,
+            "colour": colour,
+            "speed": speed,
+            "direction": direction,
+        }
 
     def _remember(self, name: str, params: Params) -> None:
         self.profile.setdefault("lighting", {}).setdefault("animations", {})[name] = {
@@ -262,9 +472,10 @@ class LightingPage(Gtk.Box):
             "zone_colours": [list(c) for c in params.zone_colours],
         }
         self.profile["lighting"]["animation"] = name
+        self.profile["lighting"]["mode"] = "custom"
         self.window.save_profile()
 
-    # -- selection ----------------------------------------------------------
+    # -- custom selection ---------------------------------------------------
     def _on_row_selected(self, _listbox, row) -> None:
         if row is None or self._syncing:
             return
@@ -273,12 +484,15 @@ class LightingPage(Gtk.Box):
     def _select_effect(self, name: str) -> None:
         self._flush_custom()
         self._current = name
-        for index, (row_name, _label) in enumerate(HOST_EFFECTS):
-            if row_name == name:
-                self._syncing = True
-                self.listbox.select_row(self.listbox.get_row_at_index(index))
-                self._syncing = False
-                break
+        was_syncing = self._syncing
+        self._syncing = True
+        try:
+            for index, (row_name, _label) in enumerate(HOST_EFFECTS):
+                if row_name == name:
+                    self.listbox.select_row(self.listbox.get_row_at_index(index))
+                    break
+        finally:
+            self._syncing = was_syncing
 
         params = animations.default_params(name)
         saved = self._stored_values(name)
@@ -291,11 +505,6 @@ class LightingPage(Gtk.Box):
 
         self._build_settings(name, params)
         self.params = params
-        if self._syncing is False and name != "custom":
-            self._syncing = True
-            self.firmware_row.set_selected(0)
-            self.firmware_controls.set_visible(False)
-            self._syncing = False
         self._apply_paint_mode(name, params)
 
     def _apply_paint_mode(self, name: str, params: Params) -> None:
@@ -320,7 +529,7 @@ class LightingPage(Gtk.Box):
             self._frame = animations.create(name, params).render(0.016)
             self.keyboard.set_matrix(self._frame)
 
-    # -- settings panel -----------------------------------------------------
+    # -- custom settings panel ---------------------------------------------
     def _build_settings(self, name: str, params: Params) -> None:
         while self.settings_box.get_first_child() is not None:
             self.settings_box.remove(self.settings_box.get_first_child())
@@ -437,7 +646,7 @@ class LightingPage(Gtk.Box):
         rgba = button.get_rgba()
         return (int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255))
 
-    # -- settings handlers --------------------------------------------------
+    # -- custom settings handlers ------------------------------------------
     def _changed(self, name: str, params: Params, restart: bool = False) -> None:
         if self.engine is not None:
             if restart:
@@ -511,6 +720,86 @@ class LightingPage(Gtk.Box):
         else:
             self.window.toast(f"{key.legend or key.code} is not mapped yet")
 
+    # -- device selection / handlers ---------------------------------------
+    def _on_device_row_selected(self, _listbox, row) -> None:
+        if row is None or self._syncing:
+            return
+        self._select_device(row.get_name(), apply=True)
+
+    def _select_device(self, name: str, apply: bool = False) -> None:
+        if name not in DEVICE_LABELS:
+            name = "static"
+        self._device_name = name
+        self._device_values["effect"] = name
+        was_syncing = self._syncing
+        self._syncing = True
+        try:
+            for index, (row_name, _label, _effect) in enumerate(DEVICE_EFFECTS):
+                if row_name == name:
+                    self.device_listbox.select_row(
+                        self.device_listbox.get_row_at_index(index)
+                    )
+                    break
+        finally:
+            self._syncing = was_syncing
+        self._build_device_settings(name)
+        if apply:
+            self._apply_device_effect()
+
+    def _on_device_colour(self, button, _pspec) -> None:
+        if self._syncing:
+            return
+        self._device_values["colour"] = self._colour_of(button)
+        self._apply_device_effect()
+
+    def _on_device_speed(self, scale: Gtk.Scale, _name: str) -> None:
+        if self._syncing:
+            return
+        self._device_values["speed"] = int(scale.get_value())
+        self._apply_device_effect()
+
+    def _on_device_direction(self, combo: Gtk.ComboBoxText) -> None:
+        if self._syncing:
+            return
+        self._device_values["direction"] = 1 if combo.get_active() == 0 else 2
+        self._apply_device_effect()
+
+    def _apply_device_effect(self) -> None:
+        name = self._device_name
+        effect = DEVICE_IDS[name]
+        colour = tuple(self._device_values["colour"])
+        speed = int(self._device_values["speed"])
+        direction = int(self._device_values["direction"])
+
+        if self.engine is not None:
+            self.engine.stop()
+        try:
+            self.backend.set_effect(effect, colour, speed, direction)
+        except Exception as exc:
+            self.window.toast(str(exc))
+            return
+
+        self.state.extra["effect"] = int(effect)
+        self.state.extra["speed"] = speed
+        self.state.extra["direction"] = direction
+        if effect != p.Effect.OFF:
+            self.state.extra["color"] = colour
+
+        lighting = self.profile.setdefault("lighting", {})
+        lighting["mode"] = "device"
+        lighting["device"] = {
+            "effect": name,
+            "colour": list(colour),
+            "speed": speed,
+            "direction": direction,
+        }
+        # The flat keys are what profile.apply() replays at startup.
+        lighting["effect"] = name
+        lighting["colour"] = list(colour)
+        lighting["speed"] = speed
+        lighting["direction"] = direction
+        self.window.save_profile()
+
     # -- preview / painting -------------------------------------------------
     def _on_frame(self, matrix) -> None:
         self._frame = matrix
@@ -543,6 +832,7 @@ class LightingPage(Gtk.Box):
             list(cell) for row in self._frame for cell in row
         ]
         self.profile["lighting"]["animation"] = "custom"
+        self.profile["lighting"]["mode"] = "custom"
         self.window.save_profile()
         return False
 
@@ -604,45 +894,6 @@ class LightingPage(Gtk.Box):
             self.state.logo = mode
             self.profile["lighting"]["logo"] = mode
             self.window.save_profile()
-        except Exception as exc:
-            self.window.toast(str(exc))
-
-    def _firmware_effect(self):
-        index = self.firmware_row.get_selected()
-        if 0 <= index < len(FIRMWARE_EFFECTS):
-            return FIRMWARE_EFFECTS[index][1]
-        return None
-
-    def _on_firmware_selected(self, row: Adw.ComboRow, _param) -> None:
-        if self._syncing:
-            return
-        effect = self._firmware_effect()
-        self.firmware_controls.set_visible(effect is not None)
-        if effect is None:
-            return
-        self._apply_firmware(effect)
-
-    def _on_firmware_option(self, *_args) -> None:
-        if self._syncing:
-            return
-        effect = self._firmware_effect()
-        if effect is not None:
-            self._apply_firmware(effect)
-
-    def _apply_firmware(self, effect: int) -> None:
-        rgba = self.fw_colour.get_rgba()
-        colour = (int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255))
-        speed = int(self.fw_speed.get_value())
-        direction = 1 if self.fw_direction.get_active() == 0 else 2
-        if self.engine is not None:
-            self.engine.stop()
-        try:
-            self.backend.set_effect(effect, colour, speed, direction)
-            self.state.extra["effect"] = int(effect)
-            shown = colour if effect in (p.Effect.OFF, p.Effect.STATIC) else (24, 24, 24)
-            self.keyboard.set_matrix(
-                [[shown for _ in range(animations.COLS)] for _ in range(animations.ROWS)]
-            )
         except Exception as exc:
             self.window.toast(str(exc))
 

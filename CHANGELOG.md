@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Lighting has a custom/device switch: the device side lists the effects the
+  controller renders itself, with only the settings the firmware accepts
+  (colour, speed, wave direction)
+
+### Fixed
+
+- the keyboard effects section was a clipped combo box that did nothing; it is
+  now a list whose entries apply immediately
+- the lid logo could report "on" with zero brightness after a controller reset;
+  the state is re-applied once when the page opens
+
 ## [0.2.0] - 2026-10-25
 
 Renamed from `razer-control-center` to `ophis`, and it grew from a settings

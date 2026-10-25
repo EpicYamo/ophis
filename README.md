@@ -41,8 +41,11 @@ acknowledged, and silently ignored.
   [Better RGB](https://github.com/EpicYamo/Better-RGB-for-Tongfang-ITE8291):
   breathing, wave with an adjustable angle, sparkle, wheel, lightning, flame,
   rain, matrix (three styles) and zoned static, each with the same parameter
-  ranges and defaults as the original. The firmware's spectrum, reactive and
-  starlight effects are still available.
+  ranges and defaults as the original. A **Device effects** page lists the
+  animations the controller renders itself — off, static, breathing, spectrum,
+  wave, reactive and starlight — with only the colour, speed or direction each
+  one accepts. Those run without CPU cost, and reactive works without input
+  permissions because the keyboard handles it.
 - **Per-key editor** — Static has a paint mode: drag over the keys to paint,
   right-click to erase, and the result is stored in the profile.
 - **Lid logo** — on, off, breathing, with its state read back from the device.
