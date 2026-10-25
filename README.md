@@ -40,7 +40,7 @@ acknowledged, and silently ignored.
 - **Lighting** — nine host-rendered effects ported from
   [Better RGB](https://github.com/EpicYamo/Better-RGB-for-Tongfang-ITE8291):
   breathing, wave with an adjustable angle, sparkle, wheel, lightning, flame,
-  rain, matrix (four styles) and zoned static, each with the same parameter
+  rain, matrix (three styles) and zoned static, each with the same parameter
   ranges and defaults as the original. The firmware's spectrum, reactive and
   starlight effects are still available.
 - **Per-key editor** — Static has a paint mode: drag over the keys to paint,
@@ -69,9 +69,9 @@ sudo udevadm control --reload-rules
 sudo udevadm trigger --action=change --subsystem-match=hidraw
 
 # Optional: a proper tray icon on GNOME
-sudo apt install libayatana-appindicator-glib2 gir1.2-ayatanaappindicatorglib-2.0
+sudo apt install gir1.2-ayatanaappindicator3-0.1
 
-make test        # 46 unit tests, no hardware needed
+make test        # 48 unit tests, no hardware needed
 make run         # GUI
 make tray        # GUI in the background with a tray icon
 make preview     # GUI with a fake device
@@ -138,8 +138,10 @@ but leaves the charge limit alone, because that is a battery-health setting and
 not decoration.
 
 On GNOME the icon needs the Ubuntu AppIndicators extension (installed by
-default on Ubuntu) and the library above. Without it the app runs normally and
-prints a note on stderr.
+default on Ubuntu) and the GTK3 library above. The indicator itself lives in a
+small GTK3 child process (`ophis.tray_helper`), because the extension only
+understands `com.canonical.dbusmenu`; GTK3 cannot share a process with GTK4.
+Without the library the app runs normally and prints a note on stderr.
 
 ## Animations
 
@@ -236,12 +238,16 @@ operating system changes, which is why quitting Ophis does not reset it.
 ## Development
 
 ```bash
-make test     # 46 unit tests, no device required
+make test     # 48 unit tests, no device required
 make preview  # GUI against a fake device
 ```
 
 Layout: `src/ophis/` (code), `tests/` (unit tests), `docs/` (protocol and
 research notes), `data/` (udev rule and desktop entry).
+
+## Author
+
+Built by **Arda Aycan** ([@EpicYamo](https://github.com/EpicYamo)).
 
 ## Disclaimer
 

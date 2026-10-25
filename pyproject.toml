@@ -9,7 +9,7 @@ description = "Linux control center for the Razer Blade 14 (2022): performance p
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "TheYamo" }]
+authors = [{ name = "Arda Aycan" }]
 keywords = ["razer", "blade", "linux", "fan-control", "rgb", "hidraw", "gtk4"]
 classifiers = [
   "Development Status :: 3 - Alpha",

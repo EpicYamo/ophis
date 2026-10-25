@@ -23,7 +23,7 @@ window into a background app with animations.
 - per-key matrix preview with paint mode
 - fan curves driven by the hottest kernel sensor, with a draggable editor
 - temperature readouts for CPU, GPU and NVMe
-- tray application (StatusNotifierItem through libayatana-appindicator-glib)
+- tray application (StatusNotifierItem through a GTK3 appindicator helper)
   with open, restore-defaults and quit entries
 - profile file at `~/.config/ophis/profile.json`, `save` and `apply` commands
 - autostart entry for the tray

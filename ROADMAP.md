@@ -37,7 +37,7 @@ back from the device, not assumed:
 
 ## M2 — Background app
 
-- [x] Tray icon through `libayatana-appindicator-glib`
+- [x] Tray icon through a GTK3 `libayatana-appindicator` helper
 - [x] Click opens the window, right click restores defaults or quits
 - [x] Restore defaults on quit, keeping the charge limit
 - [x] Profile file at `~/.config/ophis/profile.json`
