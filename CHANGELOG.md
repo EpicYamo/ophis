@@ -4,43 +4,57 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-10-25
+
+Renamed from `razer-control-center` to `ophis`, and it grew from a settings
+window into a background app with animations.
+
+### Added
+
+- charge limit, performance profiles, fan control and lighting verified on the
+  target laptop
+- host-rendered per-key animations at 24 fps: rainbow wave, wheel, sparkle,
+  rain, lightning, matrix, flame
+- per-key matrix preview with paint mode
+- fan curves driven by the hottest kernel sensor, with a draggable editor
+- temperature readouts for CPU, GPU and NVMe
+- tray application (StatusNotifierItem through libayatana-appindicator-glib)
+  with open, restore-defaults and quit entries
+- profile file at `~/.config/ophis/profile.json`, `save` and `apply` commands
+- autostart entry for the tray
+- `ophis animate`, `ophis temp`, `ophis autostart` commands
+- new window: sidebar navigation, profile cards, live values
+
+### Fixed
+
+- the checksum is at byte 89 over bytes 3-88; it had been one byte off, so every
+  packet carried a checksum the controller disagreed with
+- a fixed fan speed is only applied in the Custom profile; setting one now
+  switches profiles, and the setpoint and manual flag are read on startup
+- the lid logo needs transaction id `0xFF`, its own brightness, and the LED
+  state command; the getter is `0x03/0x80`, not `0x82`
+- keyboard effects were sent with the effect id alone, so breathing, reactive
+  and starlight used firmware defaults instead of the chosen colour and speed
+
+### Removed
+
+- the hand-written StatusNotifierItem implementation. Malformed menu replies
+  could take the GNOME shell down; the library replaces it.
+
 ## [0.1.0] - 2026-10-25
 
 ### Added
 
-- 91-byte Razer HID packet codec with CRC and echo validation
+- 91-byte packet codec with checksum and echo validation
 - hidraw transport using feature-report ioctls (no hidapi, no kernel module)
 - automatic discovery of the control interface by usage page `0xFF00`
-- device API: power profiles, CPU/GPU boost, fan RPM, keyboard brightness,
-  logo LED, lighting effects, battery charge limit
-- GTK4/libadwaita control window with a hardware-free preview mode
-- `ophis` CLI with JSON output for scripting
+- device API: profiles, boost, fan RPM, brightness, logo, effects, charge limit
+- GTK4/libadwaita window with a hardware-free preview mode
+- CLI with JSON output
 - battery and AC state from `/sys/class/power_supply`
-- udev rule for non-root access to the control interface
+- udev rule for non-root access
 - protocol and research documentation
-- unit tests for packets, checksums, charge-limit packing and fan units
+- unit tests
 
-### Fixed
-
-- the checksum was one byte off: it lives at byte 89 and covers bytes 3-88, not
-  at byte 88 over 2-87. Every request carried a checksum the EC disagreed with,
-  and replies failed validation, which was first misread as the firmware
-  echoing the request checksum
-- a fixed fan speed was ignored unless the laptop was in custom mode; setting
-  one now switches profiles, and the fan setpoint and manual flag are read back
-  on startup instead of guessed
-- the lid logo never lit up: logo commands need transaction id `0xFF`, the LED
-  brightness set first, and the state command `0x03/0x00`; the state getter is
-  `0x03/0x80` (the `0x82` variant always answers zero)
-- keyboard effects were sent with the effect id alone, so breathing, reactive
-  and starlight fell back to firmware defaults; each effect now carries its
-  colour, speed and direction with the argument count it actually needs
-
-### Notes
-
-- Reads, lighting, the charge limit and fan control are verified on the target
-  laptop. The battery cut-off itself still needs a full charge cycle.
-- Only `1532:028C` (Blade 14 2022) is a known target. Other models advertise
-  different feature sets and fan ranges.
-
+[0.2.0]: https://github.com/EpicYamo/ophis/releases/tag/v0.2.0
 [0.1.0]: https://github.com/EpicYamo/ophis/releases/tag/v0.1.0

@@ -101,6 +101,7 @@ the device reported success **and** the new value came back.
 | fan, custom | mode `4`, `manual_fan=1`, setpoint `50` to both zones | fans audibly spin up; `0x81` reads back `50` |
 | fan, back to automatic | mode `4`, `manual_fan=0` | fans return to the firmware curve |
 | lighting | static, breathing (single), wave, reactive, starlight, spectrum, each with the parameters from OpenRazer's layouts | every effect visibly ran; there is no query for the current effect |
+| per-key frames | six `03/0B` rows plus `03/0A 05 00`, repeated at 24 fps | six horizontal colour bands appeared, then ran as an animation |
 | logo LED | `03/03` brightness `FF`, then `03/00` `01 04 01`, transaction `FF` | logo lights up; state reads back `1` via `03/80` |
 
 Fan transitions are gradual: 5000 → 3500 takes about 5–6 seconds, and the fans
@@ -127,7 +128,25 @@ and the EC stores the setpoint and reports the flag even in balanced mode. It
 only acts on it in custom mode (`4`). Writing the flag and the setpoint in
 balanced looked successful in every query and did nothing audible.
 
+### Frame timing
+
+Six row writes plus one activation take about 42 ms with the full
+request/response cycle (24 fps), or 18 ms write-only (55 fps). The write-only
+path leaves responses queued, which makes later commands read someone else's
+reply, so the animation engine sticks to the slower, acknowledged path. Ten
+consecutive frames over 140 ms stop the animation and fall back to a static
+colour: a slow EC is a warning, not something to push through.
+
 ## Open questions and how to attack them
+### Frame timing
+
+Six row writes plus one activation take about 42 ms with the full
+request/response cycle (24 fps), or 18 ms write-only (55 fps). The write-only
+path leaves responses queued, which makes later commands read someone else's
+reply, so the animation engine sticks to the slower, acknowledged path. Ten
+consecutive frames over 140 ms stop the animation and fall back to a static
+colour: a slow EC is a warning, not something to push through.
+
 ## Open questions and how to attack them
 
 | Question | Approach |

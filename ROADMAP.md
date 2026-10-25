@@ -1,81 +1,81 @@
 # Roadmap
 
-Milestones are cumulative. A milestone is done when its checkbox is ticked and
-the corresponding section of the README is accurate.
+Milestones are cumulative. A milestone is done when its boxes are ticked and the
+README describes reality.
 
 ## M0 — Protocol foundation
 
 - [x] Document the 91-byte feature-report layout in `docs/PROTOCOL.md`
-- [x] Packet encoder/decoder with CRC and echo validation
-- [x] Unit tests for packets, checksums, BHO packing and fan units
+- [x] Packet codec with checksum and echo validation
+- [x] Unit tests for packets, checksums, charge-limit packing and fan units
 - [x] Fake transport so everything runs without hardware
 - [x] Identify the control interface automatically (usage page `0xFF00`)
 
 ## M1 — Hardware verification
 
-Read-only verification completed on 2026-10-25 on the target laptop
-(Blade 14 2022, `1532:028C`, `/dev/hidraw5`, driver `hid-generic`,
-BIOS 3.06). Recorded values:
+Recorded on 2026-10-25 on the target laptop (Blade 14 2022, `1532:028C`,
+`/dev/hidraw5`, driver `hid-generic`, BIOS 3.06). Every value below was read
+back from the device, not assumed:
 
 | Query | Reply arguments | Decoded |
 | --- | --- | --- |
-| power mode, CPU | `00 01 00 00` | zone 1, mode 0 (balanced) |
-| power mode, GPU | `00 02 00 00` | zone 2, mode 0 (balanced) |
-| CPU boost | `00 01 01 00` | level 1 (normal) |
-| GPU boost | `00 02 01 00` | level 1 (normal) |
-| keyboard brightness | `01 05 FF` | `VARSTORE`, `BACKLIGHT_LED`, 255 |
-| logo LED | `01 04 00` | `VARSTORE`, `LOGO_LED`, off |
-| charge limit | `D0` | enabled, threshold 80% |
+| power mode, CPU / GPU | `00 01 00 00` / `00 02 00 00` | balanced on both zones |
+| CPU / GPU boost | `00 01 01 00` / `00 02 01 00` | level 1 (normal) |
+| keyboard brightness | `01 05 FF` | 255 |
+| logo state (`03/80`) | `01 04 00` | off |
+| charge limit | `D0` | enabled, 80% |
+| fan setpoint (`0D/81`) | `00 01 32` | 5000 RPM |
 
-- [x] Run the read-only probe on the target laptop and record the real values
-- [x] Verify `get power mode` reports the profile the firmware was running
-      (balanced on both zones)
-- [x] Verify `get charge limit` returns the configured 80% limit
-- [x] Confirm the reply offsets in `docs/PROTOCOL.md` against real packets
-      (zone at `args[1]`, value at `args[2]`, BHO packed byte at `args[0]`)
-- [x] Write a single, reversible command: brightness 255 → 128 → 255, each step
-      read back from the device
-- [x] Write the charge limit with its current value (enabled, 80%) and read it
-      back unchanged — the write path works without altering behaviour
-- [ ] Confirm the battery actually stops at the threshold (needs a charge cycle)
-- [x] Write fan RPM and confirm the audible change: only custom mode applies it,
-      and the fans ramp over 5-6 seconds (5000 -> 3500 was clearly audible)
-- [x] Send every keyboard effect with its parameters (colour, speed, wave
-      direction) and confirm each animation runs
-- [x] Switch the lid logo on and off and read its state back (transaction id
-      `0xFF`, state command `0x03/0x00`, getter `0x03/0x80`)
-- [x] Document any command that behaves differently from `docs/PROTOCOL.md`:
-      the checksum is at byte 89 over `3..88` (it was one byte off), and a fixed
-      fan speed is only applied in custom mode
+- [x] Read the current state and confirm every field offset
+- [x] Write the brightness, 255 -> 128 -> 255, reading it back each time
+- [x] Write the charge limit with its current value and read it back unchanged
+- [x] Write a fan speed and confirm the audible change (custom profile)
+- [x] Switch the lid logo and read its state back
+- [x] Send every firmware effect and confirm the animation runs
+- [x] Write per-key frames and confirm cell-level control
+- [ ] Confirm the battery stops at the threshold (needs a full charge cycle)
 
-## M2 — Daemon
+## M2 — Background app
 
-- [ ] `razerd` root daemon: owns the hidraw node, applies state at boot
-- [ ] D-Bus API on the system bus with polkit authorization
-- [ ] Per-power-source profiles (AC vs battery), applied automatically
-- [ ] Restore last state on login and after resume
-- [ ] systemd unit + udev rule shipped in `data/`
+- [x] Tray icon through `libayatana-appindicator-glib`
+- [x] Click opens the window, right click restores defaults or quits
+- [x] Restore defaults on quit, keeping the charge limit
+- [x] Profile file at `~/.config/ophis/profile.json`
+- [x] `ophis save` / `ophis apply`
+- [x] Autostart entry in `~/.config/autostart`
+- [ ] Apply the profile on AC/battery transitions
+- [ ] Reconnect automatically when the device disappears (suspend/resume)
 
-## M3 — GUI
+## M3 — Window
 
-- [x] GTK4/libadwaita window with all four groups
-- [x] Preview mode without hardware
-- [ ] Talk to the daemon over D-Bus instead of opening the device directly
-- [ ] Menu-bar / tray icon with quick profile switching
-- [ ] Keyboard lighting preview (per-key editor)
-- [ ] Turkish and English translations via gettext
+- [x] Sidebar layout with Performance, Cooling, Lighting, Battery, Settings
+- [x] Live temperatures and battery state
+- [x] Fan curve editor with draggable points
+- [x] Per-key matrix preview and paint mode
+- [x] Preview mode with a fake device
+- [ ] Drag the window to a second monitor without losing the animation timer
+- [ ] Translations through gettext
 
-## M4 — Packaging
+## M4 — Lighting
+
+- [x] Firmware effects with colour, speed and direction
+- [x] Host-rendered animations at 24 fps
+- [x] Per-key frames and the `0x0B` activation sequence
+- [ ] Store and share animation presets
+- [ ] Keypress-reactive effect (needs read access to the keyboard input node)
+
+## M5 — Packaging
 
 - [ ] Debian package (`debian/` or `nfpm`)
 - [ ] Flatpak or AppImage build in CI
-- [ ] GitHub Actions: tests + lint on push
-- [ ] Tagged release with changelog
+- [ ] GitHub Actions: tests on push
+- [ ] Tagged release with changelog and screenshots
 
-## M5 — Beyond Synapse
+## M6 — Beyond Synapse
 
-- [ ] Read the actual fan RPM
-- [ ] Fan curve editor driven by CPU/GPU temperature
-- [ ] Temperature and power draw readouts
+- [x] Temperature readouts
+- [x] Temperature-driven fan curve
+- [ ] Read the actual fan speed (no tachometer command known)
 - [ ] Display refresh-rate switching
 - [ ] MUX / Optimus state (research first, see `docs/RESEARCH.md`)
+- [ ] GPU power limits through `nvidia-smi`

@@ -143,7 +143,7 @@ The UI range is 50–80%. `0x80 | 80` means "enabled, stop at 80%".
 | Set brightness | `0x03` | 3 | `VARSTORE`, `target`, `0..255` |
 | Get brightness | `0x83` | 3 | `VARSTORE`, `target`, `00` → `args[2]` |
 | Set standard effect | `0x0A` | 1-9 | `effect_id`, params (see below) |
-| Set custom frame | `0x0B` | 52 | `0xFF`, `row`, `00`, `0x0F`, 45 colour bytes at offset 7 |
+| Set custom frame row | `0x0B` | 52 | `FF`, `row 0..5`, `00`, `0F`, 48 colour bytes |
 
 Constants: `NOSTORE = 0x00`, `VARSTORE = 0x01`, `LOGO_LED = 0x04`,
 `BACKLIGHT_LED = 0x05`.
@@ -171,6 +171,26 @@ reason to send it.
 
 All of them were sent to the 2022 Blade 14 and produced the expected animation.
 The mapping of wave direction `01`/`02` to physical left/right is not confirmed.
+
+#### Per-key frames
+
+The keyboard is a 6x16 matrix. A frame is six `0x0B` reports (one per row) plus
+one activation command:
+
+```
+03/0B  FF 00 00 0F <16 x R G B>    row 0
+...
+03/0B  FF 05 00 0F <16 x R G B>    row 5
+03/0A  05 00                       activate the custom frame
+```
+
+Activation is only needed once; rows can then be rewritten continuously. At
+24 frames per second the controller keeps up comfortably; above roughly 30 the
+responses start arriving late and the EC eventually ignores frames, so the
+animation engine stops itself instead of piling on.
+
+Row order maps to physical rows top to bottom; column 0 is the left edge of
+each row.
 
 #### The logo LED is special
 
