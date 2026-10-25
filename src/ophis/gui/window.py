@@ -612,11 +612,13 @@ class ControlWindow(Adw.ApplicationWindow):
         page.add(saved)
 
         about = Adw.PreferencesGroup(title="About")
-        from .. import __version__
+        from .. import __version__, build_id
 
+        revision = build_id()
+        label = f"Ophis {__version__}" + (f" ({revision})" if revision else "")
         about.add(
             self._row(
-                f"Ophis {__version__}",
+                label,
                 "Control centre for the Razer Blade 14 (2022), USB 1532:028C. Not affiliated with Razer.",
             )
         )
