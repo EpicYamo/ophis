@@ -42,6 +42,17 @@ class OphisApp(Adw.Application):
         manager = Adw.StyleManager.get_default()
         manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
 
+        # The tray helper activates these over D-Bus. "quit" is reserved by
+        # GApplication, so ours is "quit-app".
+        for name, callback in (
+            ("show", self._show_window),
+            ("defaults", self._restore_defaults),
+            ("quit-app", self.quit_cleanly),
+        ):
+            action = Gio.SimpleAction.new(name, None)
+            action.connect("activate", lambda _a, _p, cb=callback: cb())
+            self.add_action(action)
+
     def do_activate(self) -> None:
         first = not self._started
         if first:
@@ -68,17 +79,8 @@ class OphisApp(Adw.Application):
 
     # -- tray ---------------------------------------------------------------
     def _start_tray(self) -> None:
-        self.tray = Tray(
-            on_open=self._show_window,
-            on_restore_defaults=self._restore_defaults,
-            on_quit=self.quit_cleanly,
-        )
-        if not self.tray.available:
-            print(
-                "tray unavailable: install libayatana-appindicator-glib2 and "
-                "gir1.2-ayatanaappindicatorglib-2.0",
-                file=sys.stderr,
-            )
+        self.tray = Tray()
+        self.tray.start()
 
     def _show_window(self) -> None:
         if self.window is not None:
@@ -113,6 +115,7 @@ class OphisApp(Adw.Application):
         if self.backend is not None:
             self.backend.close()
         if self.tray is not None:
+            self.tray.close()
             self.tray = None
         Adw.Application.do_shutdown(self)
 
