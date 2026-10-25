@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "razer-control-center"
+version = "0.1.0"
+description = "Linux control center for Razer Blade 14 (2022): power profiles, fan, keyboard lighting and charge limit"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "TheYamo" }]
+keywords = ["razer", "blade", "linux", "fan-control", "rgb", "hidraw", "gtk4"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: X11 Applications :: GTK",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: System :: Hardware",
+]
+
+[project.urls]
+Homepage = "https://github.com/TheYamo/razer-control-center"
+Issues = "https://github.com/TheYamo/razer-control-center/issues"
+
+[project.scripts]
+razercc = "razercc.cli:main"
+razer-control-center = "razercc.gui.app:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
