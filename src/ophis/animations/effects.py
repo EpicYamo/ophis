@@ -610,7 +610,7 @@ class Static(Effect):
             ("Horizontal zones", "Vertical zones"),
         ),
         Setting("zone_count", "Zone count", "slider", 1, 6, 1, 1),
-        Setting("zone_colours", "Colours", "zones", 1, 6, 1, 1, STATIC_PALETTE),
+        Setting("zone_colours", "Zone colours", "zone_colours", 1, 6, 1, 1, STATIC_PALETTE),
     )
 
     def __init__(self, params: Params | None = None) -> None:
@@ -673,7 +673,7 @@ def default_params(name: str) -> Params:
         elif setting.kind == "palette":
             params.palette = list(setting.choices)
             params.palette_count = int(setting.default)
-        elif setting.kind == "zones":
+        elif setting.kind == "zone_colours":
             params.zone_count = int(setting.default)
             params.zone_colours = list(setting.choices)
     return params

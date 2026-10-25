@@ -19,15 +19,15 @@ from ..animations import AnimationEngine, Params  # noqa: E402
 from .widgets import KeyboardView, paint_cell  # noqa: E402
 
 HOST_EFFECTS = [
-    ("static", "Static", "color-symbolic"),
-    ("breathing", "Breathing", "media-playback-pause-symbolic"),
-    ("wave", "Wave", "waves-symbolic"),
-    ("wheel", "Wheel", "emblem-photos-symbolic"),
-    ("sparkle", "Sparkle", "starred-symbolic"),
-    ("lightning", "Lightning", "weather-storm-symbolic"),
-    ("flame", "Flame", "fire-symbolic"),
-    ("rain", "Rain", "weather-showers-symbolic"),
-    ("matrix", "Matrix", "utilities-terminal-symbolic"),
+    ("static", "Static"),
+    ("breathing", "Breathing"),
+    ("wave", "Wave"),
+    ("wheel", "Wheel"),
+    ("sparkle", "Sparkle"),
+    ("lightning", "Lightning"),
+    ("flame", "Flame"),
+    ("rain", "Rain"),
+    ("matrix", "Matrix"),
 ]
 FIRMWARE_EFFECTS = [
     ("None", None),
@@ -76,20 +76,15 @@ class LightingPage(Gtk.Box):
         self.listbox = Gtk.ListBox()
         self.listbox.add_css_class("effect-list")
         self.listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
-        for name, label, icon in HOST_EFFECTS:
+        for name, label in HOST_EFFECTS:
             row = Gtk.ListBoxRow()
             row.set_name(name)
-            content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-            content.set_margin_top(10)
-            content.set_margin_bottom(10)
-            content.set_margin_start(12)
-            content.set_margin_end(12)
-            image = Gtk.Image.new_from_icon_name(icon)
             text = Gtk.Label(label=label, xalign=0)
-            text.set_hexpand(True)
-            content.append(image)
-            content.append(text)
-            row.set_child(content)
+            text.set_margin_top(10)
+            text.set_margin_bottom(10)
+            text.set_margin_start(14)
+            text.set_margin_end(14)
+            row.set_child(text)
             self.listbox.append(row)
         self.listbox.connect("row-selected", self._on_row_selected)
         box.append(self.listbox)
@@ -128,6 +123,14 @@ class LightingPage(Gtk.Box):
         paint_label = Gtk.Label(label="Paint keys")
         controls.append(paint_label)
         controls.append(self.paint_switch)
+
+        self.brush_button = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog())
+        self.brush_button.set_valign(Gtk.Align.CENTER)
+        self.brush_button.set_tooltip_text("Brush colour")
+        brush = Gdk.RGBA()
+        brush.parse("#ffffff")
+        self.brush_button.set_rgba(brush)
+        controls.append(self.brush_button)
 
         self.fill_button = Gtk.Button(label="Fill")
         self.fill_button.connect("clicked", self._on_fill)
@@ -215,7 +218,7 @@ class LightingPage(Gtk.Box):
 
     def _select_effect(self, name: str) -> None:
         self._current = name
-        for index, (row_name, _label, _icon) in enumerate(HOST_EFFECTS):
+        for index, (row_name, _label) in enumerate(HOST_EFFECTS):
             if row_name == name:
                 self._syncing = True
                 self.listbox.select_row(self.listbox.get_row_at_index(index))
@@ -305,21 +308,14 @@ class LightingPage(Gtk.Box):
                 button = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog())
                 button.set_valign(Gtk.Align.CENTER)
                 self._set_button_colour(button, params.palette[index])
+                button.set_visible(index < int(params.palette_count))
                 button.connect("notify::rgba", self._on_palette_colour, name, params, index)
                 box.append(button)
             row.add_suffix(box)
 
-        elif setting.kind == "zones":
+        elif setting.kind == "zone_colours":
             box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            count = Gtk.Scale.new_with_range(
-                Gtk.Orientation.HORIZONTAL, setting.low, setting.high, 1
-            )
-            count.set_value(params.zone_count)
-            count.set_size_request(120, -1)
-            count.set_draw_value(True)
-            count.connect("value-changed", self._on_zone_count, name, params)
-            box.append(count)
-            for index in range(setting.high):
+            for index in range(min(int(params.zone_count), setting.high)):
                 button = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog())
                 button.set_valign(Gtk.Align.CENTER)
                 self._set_button_colour(button, params.zone_colours[index])
@@ -355,6 +351,10 @@ class LightingPage(Gtk.Box):
 
     def _on_slider(self, scale: Gtk.Scale, name: str, key: str, params: Params) -> None:
         setattr(params, key, int(scale.get_value()))
+        if name == "static" and key == "zone_count":
+            self._build_settings(name, params)
+            self._changed(name, params, restart=True)
+            return
         self._changed(name, params)
 
     def _on_switch(self, switch: Gtk.Switch, _param, name: str, key: str, params: Params) -> None:
@@ -371,6 +371,7 @@ class LightingPage(Gtk.Box):
 
     def _on_palette_count(self, scale: Gtk.Scale, name: str, params: Params) -> None:
         params.palette_count = int(scale.get_value())
+        self._build_settings(name, params)
         self._changed(name, params)
 
     def _on_palette_colour(self, button, name: str, params: Params, index: int) -> None:
@@ -408,10 +409,14 @@ class LightingPage(Gtk.Box):
         except Exception as exc:
             self.window.toast(str(exc))
 
-    def _on_cell_clicked(self, row: int, col: int) -> None:
+    def _on_cell_clicked(self, row: int, col: int, erase: bool = False) -> None:
         if not self._paint_mode:
             return
-        colour = self.params.colour
+        if erase:
+            colour = (0, 0, 0)
+        else:
+            rgba = self.brush_button.get_rgba()
+            colour = (int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255))
         self._frame = paint_cell(self._frame, row, col, colour)
         self.keyboard.set_matrix(self._frame)
         try:
@@ -420,7 +425,8 @@ class LightingPage(Gtk.Box):
             self.window.toast(str(exc))
 
     def _on_fill(self, *_args) -> None:
-        colour = self.params.colour
+        rgba = self.brush_button.get_rgba()
+        colour = (int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255))
         self._frame = [[colour for _ in range(animations.COLS)] for _ in range(animations.ROWS)]
         self.keyboard.set_matrix(self._frame)
         self._activate_frame()

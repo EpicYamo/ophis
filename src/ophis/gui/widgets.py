@@ -8,8 +8,10 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Gsk", "4.0")
 gi.require_version("Graphene", "1.0")
-from gi.repository import Gdk, Graphene, Gsk, Gtk  # noqa: E402
+gi.require_version("Pango", "1.0")
+from gi.repository import Gdk, Graphene, Gsk, Gtk, Pango  # noqa: E402
 
+from .. import layouts  # noqa: E402
 from ..animations import COLS, ROWS, Matrix, blank  # noqa: E402
 
 MIN_TEMP, MAX_TEMP = 30, 100
@@ -17,25 +19,39 @@ MIN_RPM, MAX_RPM = 2000, 5000
 
 
 class KeyboardView(Gtk.Widget):
-    """Draws the 6x16 matrix; clicking a cell reports its coordinates.
+    """Draws the keyboard using the real key map, with a grid fallback.
 
-    Uses the snapshot API rather than cairo, so the preview works even when
-    python3-gi-cairo is missing (GTK's draw_func needs it).
+    Clicking a key reports the matrix cell behind it, so painting is 1:1 with
+    the hardware instead of guessing where a cell sits.
     """
 
     def __init__(self) -> None:
         super().__init__()
-        self.set_size_request(COLS * 28, ROWS * 34)
+        self.set_size_request(640, 250)
         self.set_hexpand(True)
         self.set_vexpand(True)
         self.matrix: Matrix = blank()
         self.on_cell = None
         self._selected: tuple[int, int] | None = None
+        self._drag_start = (0.0, 0.0)
+        self._last_painted: tuple[int, int] | None = None
 
-        click = Gtk.GestureClick()
-        click.connect("pressed", self._on_pressed)
-        self.add_controller(click)
+        self.mapping = layouts.load_map()
+        self.cells = layouts.cell_lookup(self.mapping)
 
+        drag = Gtk.GestureDrag()
+        drag.set_button(1)
+        drag.connect("drag-begin", self._on_drag_begin)
+        drag.connect("drag-update", self._on_drag_update)
+        drag.connect("drag-end", self._on_drag_end)
+        self.add_controller(drag)
+
+        erase = Gtk.GestureClick()
+        erase.set_button(3)
+        erase.connect("pressed", self._on_right_pressed)
+        self.add_controller(erase)
+
+    # -- data ---------------------------------------------------------------
     def set_matrix(self, matrix: Matrix) -> None:
         self.matrix = matrix
         self.queue_draw()
@@ -44,22 +60,77 @@ class KeyboardView(Gtk.Widget):
         self._selected = cell
         self.queue_draw()
 
+    def reload_map(self) -> None:
+        self.mapping = layouts.load_map()
+        self.cells = layouts.cell_lookup(self.mapping)
+        self.queue_draw()
+
+    # -- geometry -----------------------------------------------------------
+    @staticmethod
+    def _metrics(width: float, height: float):
+        if not (width > 0 and height > 0):
+            return 1.0, 0.0, 0.0
+        unit = min(width / layouts.WIDTH_UNITS, height / layouts.ROWS)
+        origin_x = (width - layouts.WIDTH_UNITS * unit) / 2.0
+        origin_y = (height - layouts.ROWS * unit) / 2.0
+        return unit, origin_x, origin_y
+
+    @staticmethod
+    def _key_rect(key, unit: float, origin_x: float, origin_y: float):
+        return (
+            origin_x + key.x * unit + 1.5,
+            origin_y + key.row * unit + 1.5,
+            key.width * unit - 3.0,
+            unit - 3.0,
+        )
+
     def _cell_at(self, x: float, y: float) -> tuple[int, int] | None:
-        width = self.get_width() or COLS * 28
-        height = self.get_height() or ROWS * 34
-        col = int(x / (width / COLS))
-        row = int(y / (height / ROWS))
-        if 0 <= row < ROWS and 0 <= col < COLS:
+        width = float(self.get_width())
+        height = float(self.get_height())
+        unit, origin_x, origin_y = self._metrics(width, height)
+        if self.mapping:
+            for key in layouts.LAYOUT:
+                left, top, key_w, key_h = self._key_rect(key, unit, origin_x, origin_y)
+                if left <= x <= left + key_w and top <= y <= top + key_h:
+                    cell = self.mapping.get(key.id)
+                    return (cell[0], cell[1]) if cell else None
+            return None
+        col = int((x - origin_x) / (unit))
+        row = int((y - origin_y) / (unit))
+        if 0 <= row < layouts.ROWS and 0 <= col < layouts.COLS:
             return (row, col)
         return None
 
-    def _on_pressed(self, _gesture, _presses, x, y) -> None:
+    # -- interaction --------------------------------------------------------
+    def _emit(self, cell: tuple[int, int], erase: bool = False) -> None:
+        self.set_selected(cell)
+        if self.on_cell is not None and (erase or cell != self._last_painted):
+            self.on_cell(cell[0], cell[1], erase)
+        self._last_painted = cell
+
+    def _on_drag_begin(self, _gesture, start_x, start_y) -> None:
+        self._drag_start = (start_x, start_y)
+        self._last_painted = None
+        cell = self._cell_at(start_x, start_y)
+        if cell is not None:
+            self._emit(cell)
+
+    def _on_drag_update(self, _gesture, offset_x, offset_y) -> None:
+        cell = self._cell_at(
+            self._drag_start[0] + offset_x, self._drag_start[1] + offset_y
+        )
+        if cell is not None:
+            self._emit(cell)
+
+    def _on_drag_end(self, _gesture, _offset_x, _offset_y) -> None:
+        self._last_painted = None
+
+    def _on_right_pressed(self, _gesture, _presses, x, y) -> None:
         cell = self._cell_at(x, y)
         if cell is not None:
-            self.set_selected(cell)
-            if self.on_cell is not None:
-                self.on_cell(*cell)
+            self._emit(cell, erase=True)
 
+    # -- drawing ------------------------------------------------------------
     def do_snapshot(self, snapshot) -> None:  # noqa: N802 - GTK name
         width = float(self.get_width())
         height = float(self.get_height())
@@ -70,28 +141,29 @@ class KeyboardView(Gtk.Widget):
         background.parse("#0b0b0d")
         snapshot.append_color(background, Graphene.Rect().init(0, 0, width, height))
 
-        cell_w = width / COLS
-        cell_h = height / ROWS
-        inset = min(3.0, cell_w / 6.0, cell_h / 6.0)
-        radius = min(6.0, cell_w / 4.0, cell_h / 4.0)
+        unit, origin_x, origin_y = self._metrics(width, height)
+        if self.mapping:
+            self._draw_keys(snapshot, unit, origin_x, origin_y)
+        else:
+            self._draw_grid(snapshot, unit, origin_x, origin_y)
 
-        for row in range(ROWS):
-            for col in range(COLS):
+    def _draw_grid(self, snapshot, unit, origin_x, origin_y) -> None:
+        inset = min(3.0, unit / 6.0)
+        radius = min(6.0, unit / 4.0)
+        for row in range(layouts.ROWS):
+            for col in range(layouts.COLS):
                 red, green, blue = self.matrix[row][col]
                 colour = Gdk.RGBA()
                 if (red, green, blue) == (0, 0, 0):
                     colour.parse("#26262b")
                 else:
-                    colour.red = red / 255
-                    colour.green = green / 255
-                    colour.blue = blue / 255
+                    colour.red, colour.green, colour.blue = red / 255, green / 255, blue / 255
                     colour.alpha = 1.0
-
                 rect = Graphene.Rect().init(
-                    col * cell_w + inset,
-                    row * cell_h + inset,
-                    cell_w - inset * 2,
-                    cell_h - inset * 2,
+                    origin_x + col * unit + inset,
+                    origin_y + row * unit + inset,
+                    unit - inset * 2,
+                    unit - inset * 2,
                 )
                 rounded = Gsk.RoundedRect()
                 rounded.init_from_rect(rect, radius)
@@ -99,12 +171,48 @@ class KeyboardView(Gtk.Widget):
                 snapshot.append_color(colour, rect)
                 snapshot.pop()
 
-                if self._selected == (row, col):
-                    accent = Gdk.RGBA()
-                    accent.parse("#44d62c")
-                    widths = [2.0] * 4
-                    colours = [accent] * 4
-                    snapshot.append_border(rounded, widths, colours)
+    def _draw_keys(self, snapshot, unit, origin_x, origin_y) -> None:
+        radius = min(7.0, unit / 5.0)
+        font = Pango.FontDescription("Sans 8")
+        for key in layouts.LAYOUT:
+            left, top, key_w, key_h = self._key_rect(key, unit, origin_x, origin_y)
+            cell = self.mapping.get(key.id)
+            if cell is None:
+                colour = Gdk.RGBA()
+                colour.parse("#1a1a1e")
+            else:
+                red, green, blue = self.matrix[cell[0]][cell[1]]
+                colour = Gdk.RGBA()
+                if (red, green, blue) == (0, 0, 0):
+                    colour.parse("#26262b")
+                else:
+                    colour.red, colour.green, colour.blue = red / 255, green / 255, blue / 255
+                    colour.alpha = 1.0
+
+            rect = Graphene.Rect().init(left, top, key_w, key_h)
+            rounded = Gsk.RoundedRect()
+            rounded.init_from_rect(rect, radius)
+            snapshot.push_rounded_clip(rounded)
+            snapshot.append_color(colour, rect)
+            snapshot.pop()
+
+            if self._selected is not None and cell == list(self._selected):
+                accent = Gdk.RGBA()
+                accent.parse("#44d62c")
+                snapshot.append_border(rounded, [2.0] * 4, [accent] * 4)
+
+            if key.legend:
+                layout = self.create_pango_layout(key.legend)
+                layout.set_font_description(font)
+                text_w, text_h = layout.get_pixel_size()
+                text = Gdk.RGBA()
+                text.parse("rgba(255,255,255,0.75)")
+                snapshot.save()
+                snapshot.translate(
+                    left + (key_w - text_w) / 2.0, top + (key_h - text_h) / 2.0
+                )
+                snapshot.append_layout(layout, text)
+                snapshot.restore()
 
 
 class CurveEditor(Gtk.Widget):
