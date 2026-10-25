@@ -137,10 +137,11 @@ The UI range is 50–80%. `0x80 | 80` means "enabled, stop at 80%".
 
 | Command | ID | `data_size` | Arguments |
 | --- | --- | --- | --- |
-| Set brightness | `0x03` | 3 | `VARSTORE`, `BACKLIGHT_LED`, `0..255` |
-| Get brightness | `0x83` | 3 | `VARSTORE`, `BACKLIGHT_LED`, `00` |
-| Set logo mode | `0x00` | 3 | `VARSTORE`, `LOGO_LED`, `0|1` |
-| Set logo breathing | `0x02` | 3 | `VARSTORE`, `LOGO_LED`, `0x02` |
+| Set LED state | `0x00` | 3 | `VARSTORE`, `target`, `0|1` |
+| Get LED state | `0x80` | 3 | `VARSTORE`, `target`, `00` → `args[2]` |
+| Set logo effect | `0x02` | 3 | `VARSTORE`, `LOGO_LED`, `0x02` (breathing) |
+| Set brightness | `0x03` | 3 | `VARSTORE`, `target`, `0..255` |
+| Get brightness | `0x83` | 3 | `VARSTORE`, `target`, `00` → `args[2]` |
 | Set standard effect | `0x0A` | 80 | `effect_id`, params… |
 | Set custom frame | `0x0B` | 52 | `0xFF`, `row`, `00`, `0x0F`, 45 colour bytes at offset 7 |
 
@@ -151,6 +152,30 @@ Effect ids: `0x00` off, `0x01` wave, `0x02` reactive, `0x03` breathing,
 `0x04` spectrum, `0x05` custom frame, `0x06` static, `0x19` starlight.
 
 Static colour is `effect_id = 0x06` followed by `R`, `G`, `B`.
+
+#### The logo LED is special
+
+Three things differ from every other LED command, and all three have to be
+right or the command is acknowledged with nothing happening:
+
+- **transaction id `0xFF`**, not `0x1F`
+- **state, not effect**: `0x03/0x00` with `0|1` switches it. `0x03/0x02` with
+  `0x02` is the documented breathing mode, but the Blade firmware calls it
+  unsupported and it has not been verified here
+- **its own brightness**: `0x03/0x03` with `LOGO_LED` must be non-zero, so turn
+  the brightness up before switching the state on
+
+Reading it back uses `0x03/0x80` (get LED state), **not** `0x03/0x82`. The `0x82`
+variant answers `0` no matter what the LED is doing, which is a convincing way
+to conclude the hardware has no logo at all.
+
+Verified sequence on this model (the lid logo visibly lights up):
+
+```
+03/03  01 04 FF    logo brightness to maximum
+03/00  01 04 01    logo on
+03/80  01 04 00    read state -> args[2] = 1
+```
 
 ## Sequence for a write
 
@@ -172,9 +197,6 @@ These are not needed for the features above, but are the interesting next steps
 
 - reading the **actual** fan RPM: `0x0D/0x81` returns the setpoint, and no
   tachometer command is known for this model
-- why the logo LED state query (`0x03/0x82`) returns `0` even right after a
-  successful write — the lid logo exists on this model and does not light up,
-  so the write itself is probably encoded differently
 - MUX switch / Optimus state
 - display refresh-rate switching on models that Synapse handles
 - GPU TGP limits

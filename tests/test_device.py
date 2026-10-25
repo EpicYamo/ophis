@@ -89,6 +89,25 @@ class DeviceTests(unittest.TestCase):
         self.assertEqual(self.last().command_id, p.Cmd.LED_SET_STANDARD_EFFECT)
         self.assertEqual(self.last().arguments[:4], bytes([p.Effect.STATIC, 10, 20, 30]))
 
+    def test_set_logo_uses_the_blade_state_command(self):
+        self.device.set_logo(1)
+        state = [r for r in self.transport.requests if r.command_id == p.Cmd.LED_SET_EFFECT]
+        self.assertEqual(state[-1].arguments[:3], bytes([p.VARSTORE, p.LOGO_LED, 1]))
+        self.assertTrue(all(r.transaction_id == p.LOGO_TRANSACTION_ID
+                            for r in self.transport.requests))
+
+    def test_set_logo_off_only_writes_the_state(self):
+        self.device.set_logo(0)
+        ids = [r.command_id for r in self.transport.requests]
+        self.assertEqual(ids, [p.Cmd.LED_SET_EFFECT])
+        self.assertEqual(self.last().arguments[:3], bytes([p.VARSTORE, p.LOGO_LED, 0]))
+
+    def test_get_logo_reads_the_state_command(self):
+        self.transport.set_response(0x03, 0x80, [p.VARSTORE, p.LOGO_LED, 0x01])
+        self.assertEqual(self.device.get_logo(), 1)
+        self.assertEqual(self.last().command_id, p.Cmd.LED_GET_STATE)
+        self.assertEqual(self.last().transaction_id, p.LOGO_TRANSACTION_ID)
+
     def test_missing_feature_raises(self):
         device = RazerDevice(self.transport, features={"logo"})
         with self.assertRaises(p.NotSupported):

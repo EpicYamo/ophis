@@ -101,6 +101,11 @@ class DeviceBackend:
             self.state.brightness = self.device.get_brightness()
         except p.RazerError:
             pass
+        if "logo" in self.device.features:
+            try:
+                self.state.logo = self.device.get_logo()
+            except p.RazerError:
+                pass
         if "bho" in self.device.features:
             try:
                 self.state.bho_enabled, self.state.bho_threshold = self.device.get_bho()

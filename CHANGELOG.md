@@ -29,6 +29,9 @@ All notable changes to this project are documented here. The format follows
 - a fixed fan speed was ignored unless the laptop was in custom mode; setting
   one now switches profiles, and the fan setpoint and manual flag are read back
   on startup instead of guessed
+- the lid logo never lit up: logo commands need transaction id `0xFF`, the LED
+  brightness set first, and the state command `0x03/0x00`; the state getter is
+  `0x03/0x80` (the `0x82` variant always answers zero)
 
 ### Notes
 

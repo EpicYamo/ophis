@@ -40,12 +40,13 @@ class Cmd(IntEnum):
     """Values of the packet `command_id` field."""
 
     # 0x03 - LED
-    LED_SET_EFFECT = 0x00
+    LED_SET_EFFECT = 0x00  # set LED state / effect, target at args[1]
     LED_SET_LOGO_EFFECT = 0x02
     LED_SET_BRIGHTNESS = 0x03
     LED_SET_STANDARD_EFFECT = 0x0A
     LED_SET_CUSTOM_FRAME = 0x0B
-    LED_GET_LOGO_EFFECT = 0x82
+    LED_GET_STATE = 0x80
+    LED_GET_LOGO_EFFECT = 0x82  # documented, but returns 0 on this model
     LED_GET_BRIGHTNESS = 0x83
 
     # 0x07 - Battery Health Optimizer
@@ -78,6 +79,9 @@ class PowerMode(IntEnum):
     CREATOR = 2
     CUSTOM = 4
 
+
+# Logo LED commands on Blade laptops use this transaction id instead of 0x1F.
+LOGO_TRANSACTION_ID = 0xFF
 
 # LED targets
 NOSTORE = 0x00

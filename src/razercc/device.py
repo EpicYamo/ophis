@@ -184,23 +184,45 @@ class RazerDevice:
         )
         self.state.brightness = value
 
+    def _logo_call(self, command_id: int, args: bytes) -> p.Packet:
+        """Logo LED commands use transaction id 0xFF, not the usual 0x1F."""
+        request = p.Packet(
+            command_class=p.Class.LED,
+            command_id=command_id,
+            data_size=len(args),
+            arguments=args,
+            transaction_id=p.LOGO_TRANSACTION_ID,
+        )
+        reply = self.transport.transact(request)
+        reply.check(request)
+        return reply
+
+    def get_logo(self) -> int:
+        """0 = off, 1 = on. The EC reports breathing as on."""
+        self._require("logo")
+        reply = self._logo_call(
+            p.Cmd.LED_GET_STATE, bytes([p.VARSTORE, p.LOGO_LED, 0x00])
+        )
+        return reply.arguments[2]
+
     def set_logo(self, mode: int) -> None:
         """0 = off, 1 = on, 2 = breathing."""
         self._require("logo")
         mode = max(0, min(2, int(mode)))
-        if mode:
-            self._call(
-                p.Class.LED,
-                p.Cmd.LED_SET_LOGO_EFFECT,
-                0x03,
-                bytes([p.VARSTORE, p.LOGO_LED, 0x02 if mode == 2 else 0x00]),
+        if mode == 0:
+            self._logo_call(
+                p.Cmd.LED_SET_EFFECT, bytes([p.VARSTORE, p.LOGO_LED, 0x00])
             )
-        self._call(
-            p.Class.LED,
-            p.Cmd.LED_SET_EFFECT,
-            0x03,
-            bytes([p.VARSTORE, p.LOGO_LED, 1 if mode else 0]),
-        )
+        else:
+            # The LED only comes on when its own brightness is not zero.
+            self._logo_call(
+                p.Cmd.LED_SET_BRIGHTNESS, bytes([p.VARSTORE, p.LOGO_LED, 0xFF])
+            )
+            command = p.Cmd.LED_SET_EFFECT if mode == 1 else p.Cmd.LED_SET_LOGO_EFFECT
+            self._logo_call(
+                command,
+                bytes([p.VARSTORE, p.LOGO_LED, 0x01 if mode == 1 else 0x02]),
+            )
         self.state.logo = mode
 
     def set_effect(self, effect: int, params: bytes = b"") -> None:

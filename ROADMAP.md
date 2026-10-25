@@ -40,6 +40,8 @@ BIOS 3.06). Recorded values:
 - [ ] Confirm the battery actually stops at the threshold (needs a charge cycle)
 - [x] Write fan RPM and confirm the audible change: only custom mode applies it,
       and the fans ramp over 5-6 seconds (5000 -> 3500 was clearly audible)
+- [x] Switch the lid logo on and off and read its state back (transaction id
+      `0xFF`, state command `0x03/0x00`, getter `0x03/0x80`)
 - [x] Document any command that behaves differently from `docs/PROTOCOL.md`:
       the checksum is at byte 89 over `3..88` (it was one byte off), and a fixed
       fan speed is only applied in custom mode

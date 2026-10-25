@@ -85,6 +85,9 @@ Two things this proved that the old notes only assumed:
 It also confirmed that `hid-generic` plus a udev rule is enough: the probe ran
 as a normal user, with no kernel module and Secure Boot still enabled.
 
+The logo row above used `0x03/0x82`, which answers `0` no matter what the LED is
+doing; the correct getter is `0x03/0x80`. See the note at the end of this file.
+
 ### Write commands, 2026-10-25
 
 Each write was followed by a read of the same value, so "read back" below means
@@ -98,11 +101,17 @@ the device reported success **and** the new value came back.
 | fan, custom | mode `4`, `manual_fan=1`, setpoint `50` to both zones | fans audibly spin up; `0x81` reads back `50` |
 | fan, back to automatic | mode `4`, `manual_fan=0` | fans return to the firmware curve |
 | lighting | static `FF5500`, static `00FF00`, breathing, spectrum | accepted; the firmware has no query for the current effect |
-| logo LED | `set_led_state(VARSTORE, LOGO_LED, 1)` | accepted, but the state query still returns `0` and the lid logo stays dark |
+| logo LED | `03/03` brightness `FF`, then `03/00` `01 04 01`, transaction `FF` | logo lights up; state reads back `1` via `03/80` |
 
 Fan transitions are gradual: 5000 → 3500 takes about 5–6 seconds, and the fans
 ramp smoothly instead of stepping. Listening for two seconds is not enough,
 which is exactly why the first rounds of testing looked like a failure.
+
+The logo took a third mistake to solve: Blade laptops answer logo commands only
+with transaction id `0xFF`, switch it with the LED *state* command (`03/00` +
+its own brightness) rather than an effect, and report it through `03/80`. We
+were sending `0x1F` and reading `03/82`, which returns zero regardless of the
+hardware — easy to read as "this model has no logo".
 
 ### Two mistakes found here, both worth remembering
 

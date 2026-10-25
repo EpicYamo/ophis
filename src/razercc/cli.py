@@ -50,7 +50,7 @@ def build_parser() -> argparse.ArgumentParser:
         "setting",
         nargs="?",
         default="all",
-        choices=["all", "power", "fan", "brightness", "battery"],
+        choices=["all", "power", "fan", "brightness", "logo", "battery"],
     )
 
     set_parser = sub.add_parser("set", help="change one setting")
@@ -99,6 +99,7 @@ def snapshot(backend) -> dict:
         "fan_rpm": state.fan_rpm,
         "fan_auto": state.fan_rpm == 0,
         "brightness": state.brightness,
+        "logo": state.logo,
         "effect": state.extra.get("effect"),
         "battery": {
             "charge_limit_enabled": state.bho_enabled,
@@ -117,6 +118,7 @@ def print_human(data: dict) -> None:
     print(f"GPU boost   : {data['gpu_boost']}")
     print(f"Fan         : {'automatic' if data['fan_auto'] else str(data['fan_rpm']) + ' RPM'}")
     print(f"Backlight   : {data['brightness']}")
+    print(f"Logo LED    : {['off', 'on', 'breathing'][data['logo']] if data['logo'] in (0, 1, 2) else data['logo']}")
     battery = data["battery"]
     limit = (
         f"{battery['charge_limit']}% (enabled)"
@@ -164,6 +166,8 @@ def main(argv: list[str] | None = None) -> int:
                 data = {"rpm": data["fan_rpm"], "auto": data["fan_auto"]}
             elif args.setting == "brightness":
                 data = {"brightness": data["brightness"]}
+            elif args.setting == "logo":
+                data = {"logo": data["logo"]}
             elif args.setting == "battery":
                 data = data["battery"]
             emit(data, args.json, human=True)
