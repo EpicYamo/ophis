@@ -12,8 +12,9 @@ from enum import IntEnum
 
 PACKET_LEN = 91
 TRANSACTION_ID = 0x1F
-CRC_START = 2
-CRC_END = 88  # exclusive: bytes 2..87
+CRC_INDEX = 89
+CRC_START = 3
+CRC_END = 89  # exclusive: bytes 3..88
 
 ARGS_LEN = 80
 
@@ -53,6 +54,7 @@ class Cmd(IntEnum):
 
     # 0x0D - Power and fan
     FAN_SET_RPM = 0x01
+    FAN_GET_RPM = 0x81
     POWER_SET_MODE = 0x02
     BOOST_SET = 0x07
     POWER_GET_MODE = 0x82
@@ -97,7 +99,7 @@ class DeviceTimeout(RazerError):
 
 
 def checksum(data: bytes) -> int:
-    """Razer CRC: XOR of bytes 2..87."""
+    """Razer CRC: XOR of bytes 3..88, stored at byte 89."""
     crc = 0
     for byte in data[CRC_START:CRC_END]:
         crc ^= byte
@@ -147,25 +149,18 @@ class Packet:
         buf[7] = self.command_class
         buf[8] = self.command_id
         buf[9 : 9 + len(self.arguments)] = self.arguments
-        buf[88] = checksum(bytes(buf))
-        buf[89] = self.reserved
+        buf[CRC_INDEX] = checksum(bytes(buf))
+        buf[90] = self.reserved
         return bytes(buf)
 
     @classmethod
-    def decode(cls, data: bytes, accept_crc: int | None = None) -> "Packet":
-        """Parse a reply.
-
-        The firmware does not recompute the checksum for replies: it keeps the
-        one from the request in byte 88. So a reply that carries data (fan rpm,
-        brightness, charge limit) fails a strict check. Pass the request's
-        checksum as `accept_crc` to accept that echo as well; the status byte
-        and the echoed command class/id are still validated by `check()`.
-        """
+    def decode(cls, data: bytes) -> "Packet":
+        """Parse a reply and verify its checksum."""
         if len(data) != PACKET_LEN:
             raise ValueError(f"expected {PACKET_LEN} bytes, got {len(data)}")
         expected = checksum(data)
-        actual = data[88]
-        if expected != actual and actual != accept_crc:
+        actual = data[CRC_INDEX]
+        if expected != actual:
             raise RazerError(f"CRC mismatch: expected 0x{expected:02x}, got 0x{actual:02x}")
         return cls(
             command_class=data[7],
@@ -177,7 +172,7 @@ class Packet:
             protocol_type=data[5],
             remaining_packets=struct.unpack("<H", data[3:5])[0],
             crc=actual,
-            reserved=data[89],
+            reserved=data[90],
         )
 
     # -- helpers -----------------------------------------------------------

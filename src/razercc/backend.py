@@ -87,7 +87,9 @@ class DeviceBackend:
         if not self.connected:
             return
         try:
-            self.state.power_mode = self.device.get_power_mode(1)
+            mode, manual = self.device.get_power_state(1)
+            self.state.power_mode = mode
+            self.state.fan_rpm = self.device.get_fan_target(1) if manual else 0
         except p.RazerError:
             pass
         for which, attr in ((1, "cpu_boost"), (2, "gpu_boost")):

@@ -22,14 +22,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
-- replies that carry data were being rejected: the firmware reuses the request's
-  checksum instead of recomputing it, so `Packet.decode` now accepts the echo
-  when the caller passes it (found during the first hardware write test)
+- the checksum was one byte off: it lives at byte 89 and covers bytes 3-88, not
+  at byte 88 over 2-87. Every request carried a checksum the EC disagreed with,
+  and replies failed validation, which was first misread as the firmware
+  echoing the request checksum
+- a fixed fan speed was ignored unless the laptop was in custom mode; setting
+  one now switches profiles, and the fan setpoint and manual flag are read back
+  on startup instead of guessed
 
 ### Notes
 
-- Read-only commands are verified on the target laptop; write commands still
-  need a hardware test. See `ROADMAP.md` M1.
+- Reads, lighting, the charge limit and fan control are verified on the target
+  laptop. The battery cut-off itself still needs a full charge cycle.
 - Only `1532:028C` (Blade 14 2022) is a known target. Other models advertise
   different feature sets and fan ranges.
 

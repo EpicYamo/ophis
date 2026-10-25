@@ -87,22 +87,38 @@ as a normal user, with no kernel module and Secure Boot still enabled.
 
 ### Write commands, 2026-10-25
 
-Each write was followed by a read of the same value, so "accepted" below means
+Each write was followed by a read of the same value, so "read back" below means
 the device reported success **and** the new value came back.
 
 | Command | Sent | Result |
 | --- | --- | --- |
 | brightness | `01 05 80`, then `01 05 FF` | read back `80`, then `FF` |
 | charge limit | `D0` (enabled, 80%) | read back `D0`, unchanged |
-| fan | mode `0`, `manual_fan=1`, `42` to both zones | accepted; nothing to read back, so only the sound confirms it |
-| fan, automatic | mode `0`, `manual_fan=0` | accepted, hands control back to the firmware |
+| fan, balanced/gaming | mode `0`, `manual_fan=1`, setpoint `35`–`50` | setpoint stored and readable via `0x81`, `manual_fan` reports `1`, **fans do not move** |
+| fan, custom | mode `4`, `manual_fan=1`, setpoint `50` to both zones | fans audibly spin up; `0x81` reads back `50` |
+| fan, back to automatic | mode `4`, `manual_fan=0` | fans return to the firmware curve |
 | lighting | static `FF5500`, static `00FF00`, breathing, spectrum | accepted; the firmware has no query for the current effect |
-| logo LED | `set_led_state(VARSTORE, LOGO_LED, 1)` | accepted, but the state query still returns `0` |
+| logo LED | `set_led_state(VARSTORE, LOGO_LED, 1)` | accepted, but the state query still returns `0` and the lid logo stays dark |
 
-The logo result is the one loose end: the write is acknowledged but the query
-never changes, so either the lid logo is not illuminated on this model or the
-state query is not the right command.
+Fan transitions are gradual: 5000 → 3500 takes about 5–6 seconds, and the fans
+ramp smoothly instead of stepping. Listening for two seconds is not enough,
+which is exactly why the first rounds of testing looked like a failure.
 
+### Two mistakes found here, both worth remembering
+
+**The checksum offset was off by one.** The 80 argument bytes are at `9..88`,
+the checksum is at 89 and covers `3..88`. This project originally put the
+checksum at 88 and covered `2..87`, so every request carried a checksum the EC
+did not agree with. Power-mode writes still worked, which hid the problem; reply
+validation failed, which was first misdiagnosed as "the firmware echoes the
+request checksum".
+
+**Manual fan needs custom mode.** The power-mode packet has a `manual_fan` flag,
+and the EC stores the setpoint and reports the flag even in balanced mode. It
+only acts on it in custom mode (`4`). Writing the flag and the setpoint in
+balanced looked successful in every query and did nothing audible.
+
+## Open questions and how to attack them
 ## Open questions and how to attack them
 
 | Question | Approach |

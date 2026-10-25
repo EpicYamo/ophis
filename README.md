@@ -13,9 +13,9 @@ No DKMS module, no Secure Boot changes, no cloud account. It talks to the
 laptop's embedded controller over the HID feature-report protocol that Synapse
 itself uses.
 
-> **Status: pre-alpha.** Reads and the keyboard / charge-limit write paths are
-> verified on the target laptop; fan control has not been tested on hardware
-> yet. See [ROADMAP.md](ROADMAP.md).
+> **Status: pre-alpha.** Reads, lighting, charge limit and fan control are all
+> verified on the target laptop. The remaining gap is the battery cut-off
+> behaviour, which needs a full charge cycle. See [ROADMAP.md](ROADMAP.md).
 
 ## Why this exists
 
@@ -83,7 +83,8 @@ Commands:
 ```bash
 razercc get battery --json            # charge limit + live capacity
 razercc set power gaming
-razercc set fan 4200                  # or: razercc set fan auto
+razercc set fan 4200                  # fixed speed (switches to Custom)
+razercc set fan auto                  # back to the firmware curve
 razercc set brightness 180
 razercc set bho on --threshold 80     # stop charging at 80%
 razercc set effect static --color FF5500
@@ -91,7 +92,8 @@ razercc set logo breathing
 ```
 
 Every command accepts `--json` for scripting, and `--preview` to exercise the
-CLI without hardware.
+CLI without hardware. Fan changes are gradual on this hardware: allow five or
+six seconds before deciding nothing happened.
 
 ## How it works
 
@@ -110,9 +112,9 @@ CLI (argparse)         ─┴─►  RazerDevice  ─►  HidrawTransport  ─�
 
 ## Known limitations
 
-- Fan speed can be set but not read: this interface has no tachometer command,
-  so a new session always starts on "automatic" even if a fixed speed was set
-  earlier.
+- The fan figure shown is the setpoint, not a measurement: the EC exposes no
+  tachometer, only the target speed. A fixed speed switches the laptop to the
+  Custom profile, because balanced and gaming ignore the setpoint.
 - The logo LED accepts writes but its state query keeps returning `0`, so the
   app cannot tell whether the lid logo is actually lit.
 - Effects other than static are sent with the effect id only. Synapse also

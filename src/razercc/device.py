@@ -54,11 +54,22 @@ class RazerDevice:
             raise p.NotSupported(f"this model does not expose the '{feature}' feature")
 
     # -- power / performance -----------------------------------------------
-    def get_power_mode(self, zone: int = 1) -> int:
+    def get_power_state(self, zone: int = 1) -> tuple[int, bool]:
+        """Return (mode, manual_fan) as the device reports them."""
         reply = self._call(
             p.Class.POWER, p.Cmd.POWER_GET_MODE, 0x04, bytes([0x00, zone, 0x00, 0x00])
         )
-        return reply.arguments[2]
+        return reply.arguments[2], bool(reply.arguments[3])
+
+    def get_power_mode(self, zone: int = 1) -> int:
+        return self.get_power_state(zone)[0]
+
+    def get_fan_target(self, zone: int = 1) -> int:
+        """Fan setpoint in RPM; 0 means the firmware is in charge."""
+        reply = self._call(
+            p.Class.POWER, p.Cmd.FAN_GET_RPM, 0x03, bytes([0x00, zone, 0x00])
+        )
+        return reply.arguments[2] * 100
 
     def get_boost(self, which: int = 1) -> int:
         """`which`: 1 = CPU, 2 = GPU."""
@@ -79,45 +90,66 @@ class RazerDevice:
             bytes([0x00, zone, mode, int(manual_fan)]),
         )
 
-    def set_power_mode(self, mode: int, cpu_boost: int = 2, gpu_boost: int = 2) -> None:
-        """0 = balanced, 1 = gaming, 2 = creator, 4 = custom."""
+    def set_power_mode(
+        self, mode: int, cpu_boost: int | None = None, gpu_boost: int | None = None
+    ) -> None:
+        """0 = balanced, 1 = gaming, 2 = creator, 4 = custom.
+
+        Manual fan speed only takes effect in custom mode on this model, so
+        leaving custom hands the fans back to the firmware.
+        """
         mode = int(mode)
         if mode not in (0, 1, 2, 4):
             raise ValueError(f"invalid power mode: {mode}")
-        manual_fan = self.state.fan_rpm > 0
+        manual = mode == p.PowerMode.CUSTOM and self.state.fan_rpm > 0
+
+        for zone in (1, 2):
+            self._set_power_zone(zone, mode, manual)
+        self.state.power_mode = mode
 
         if mode != p.PowerMode.CUSTOM:
-            self._set_power_zone(1, mode, manual_fan)
-            self._set_power_zone(2, mode, manual_fan)
-            self.state.power_mode = mode
+            self.state.fan_rpm = 0
             return
 
-        # Custom mode hands fan control and boost levels to the user.
-        self.state.fan_rpm = 0
-        for zone in (1, 2):
-            self._set_power_zone(zone, mode, manual_fan=False)
+        cpu_boost = self.state.cpu_boost if cpu_boost is None else cpu_boost
+        gpu_boost = self.state.gpu_boost if gpu_boost is None else gpu_boost
         self._set_boost(1, cpu_boost)
         self._set_boost(2, gpu_boost)
-        self.state.power_mode = mode
         self.state.cpu_boost = cpu_boost
         self.state.gpu_boost = gpu_boost
 
     # -- fan ---------------------------------------------------------------
     def set_fan_rpm(self, rpm: int) -> None:
-        """0 = automatic, otherwise 3500-5000 RPM."""
-        if self.state.power_mode == p.PowerMode.CUSTOM:
-            raise p.RazerError(
-                "fan control is unavailable in custom mode; select a power mode first"
-            )
+        """0 = automatic, otherwise 3500-5000 RPM.
+
+        A fixed speed requires custom mode: with balanced or gaming the EC
+        stores the value but keeps its own fan curve, so the switch is made
+        here. Both zones get the mode write first, then the setpoint.
+        """
         manual = rpm > 0
-        units = p.fan_to_raw(rpm, *self.fan_range) if manual else 0
+        mode = self.state.power_mode
+        if manual and mode != p.PowerMode.CUSTOM:
+            mode = p.PowerMode.CUSTOM
+
         for zone in (1, 2):
-            self._set_power_zone(zone, self.state.power_mode, manual_fan=manual)
-            if manual:
-                self._call(
-                    p.Class.POWER, p.Cmd.FAN_SET_RPM, 0x03, bytes([0x00, zone, units])
-                )
-        self.state.fan_rpm = 0 if not manual else units * 100
+            self._set_power_zone(zone, mode, manual)
+
+        if not manual:
+            self.state.fan_rpm = 0
+            self.state.power_mode = mode
+            return
+
+        units = p.fan_to_raw(rpm, *self.fan_range)
+        for zone in (1, 2):
+            self._call(p.Class.POWER, p.Cmd.FAN_SET_RPM, 0x03, bytes([0x00, zone, units]))
+
+        if mode == p.PowerMode.CUSTOM and int(self.state.power_mode) != int(mode):
+            # Entering custom mode from another profile also needs the boosts.
+            self._set_boost(1, self.state.cpu_boost)
+            self._set_boost(2, self.state.gpu_boost)
+
+        self.state.power_mode = mode
+        self.state.fan_rpm = units * 100
 
     # -- battery -----------------------------------------------------------
     def get_bho(self) -> tuple[bool, int]:

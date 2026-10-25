@@ -38,10 +38,11 @@ BIOS 3.06). Recorded values:
 - [x] Write the charge limit with its current value (enabled, 80%) and read it
       back unchanged — the write path works without altering behaviour
 - [ ] Confirm the battery actually stops at the threshold (needs a charge cycle)
-- [ ] Write fan RPM and confirm the audible change
+- [x] Write fan RPM and confirm the audible change: only custom mode applies it,
+      and the fans ramp over 5-6 seconds (5000 -> 3500 was clearly audible)
 - [x] Document any command that behaves differently from `docs/PROTOCOL.md`:
-      replies reuse the **request's** checksum instead of recomputing it, which
-      is now handled by `Packet.decode(..., accept_crc=...)`
+      the checksum is at byte 89 over `3..88` (it was one byte off), and a fixed
+      fan speed is only applied in custom mode
 
 ## M2 — Daemon
 

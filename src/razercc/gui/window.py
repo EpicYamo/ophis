@@ -110,7 +110,8 @@ class ControlWindow(Adw.ApplicationWindow):
     def _build_fan(self) -> Adw.PreferencesGroup:
         group = Adw.PreferencesGroup(
             title="Fan",
-            description="Manual control is overridden by Custom power profile",
+            description="A fixed speed switches the laptop to the Custom profile; "
+            "the fans take a few seconds to settle",
         )
         self.fan_auto = Adw.SwitchRow(
             title="Automatic", subtitle="Let the embedded controller manage fan speed"
@@ -190,7 +191,7 @@ class ControlWindow(Adw.ApplicationWindow):
 
             self.fan_auto.set_active(self.state.fan_rpm == 0)
             self.fan_rpm.set_value(self.state.fan_rpm or 3500)
-            self.fan_rpm.set_sensitive(self.state.fan_rpm > 0 and not custom)
+            self.fan_rpm.set_sensitive(not self.fan_auto.get_active())
 
             self.brightness.set_value(self.state.brightness)
             effect = self.state.extra.get("effect")

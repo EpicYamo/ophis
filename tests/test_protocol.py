@@ -20,9 +20,19 @@ class PacketTests(unittest.TestCase):
         pkt = p.Packet.request(p.Class.POWER, p.Cmd.POWER_GET_MODE, 4, bytes([0, 1, 0, 0]))
         raw = pkt.encode()
         expected = 0
-        for byte in raw[2:88]:
+        for byte in raw[3:89]:
             expected ^= byte
-        self.assertEqual(raw[88], expected)
+        self.assertEqual(raw[89], expected)
+        self.assertEqual(raw[90], 0x00)
+
+    def test_crc_byte_is_not_an_argument(self):
+        # 80 argument bytes live at 9..88, the checksum is the next byte.
+        pkt = p.Packet.request(p.Class.LED, p.Cmd.LED_SET_BRIGHTNESS, 3, bytes([1, 5, 0]))
+        raw = pkt.encode()
+        self.assertEqual(raw[11], 0x00)
+        self.assertEqual(raw[88], 0x00)
+        self.assertNotEqual(raw[89], 0x00)
+        self.assertEqual(p.Packet.decode(raw).arguments[79], 0x00)
 
     def test_decode_roundtrip(self):
         pkt = p.Packet.request(p.Class.LED, p.Cmd.LED_SET_BRIGHTNESS, 3, bytes([1, 5, 200]))
@@ -33,20 +43,9 @@ class PacketTests(unittest.TestCase):
 
     def test_decode_rejects_bad_crc(self):
         raw = bytearray(p.Packet.request(p.Class.LED, p.Cmd.LED_SET_BRIGHTNESS, 3, bytes([1, 5, 200])).encode())
-        raw[88] ^= 0xFF
+        raw[89] ^= 0xFF
         with self.assertRaises(p.RazerError):
             p.Packet.decode(bytes(raw))
-
-    def test_decode_accepts_the_request_crc_echo(self):
-        # Observed on hardware: the firmware copies the request checksum into
-        # the reply instead of recomputing it.
-        raw = bytearray(p.Packet.request(p.Class.LED, p.Cmd.LED_GET_BRIGHTNESS, 3, bytes([1, 5, 0])).encode())
-        raw[11] = 0x80  # reply says "brightness 128", so the stored CRC is stale
-        with self.assertRaises(p.RazerError):
-            p.Packet.decode(bytes(raw))
-        decoded = p.Packet.decode(bytes(raw), accept_crc=raw[88])
-        self.assertEqual(decoded.arguments[2], 0x80)
-        self.assertEqual(decoded.command_id, p.Cmd.LED_GET_BRIGHTNESS)
 
     def test_check_rejects_not_supported(self):
         reply = p.Packet(command_class=0x07, command_id=0x92, data_size=1,

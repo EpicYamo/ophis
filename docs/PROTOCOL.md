@@ -32,7 +32,7 @@ All multi-byte integers are little endian. Total length is fixed at 91 bytes.
 | 7 | 1 | `command_class` | see command table |
 | 8 | 1 | `command_id` | see command table |
 | 9 | 80 | `arguments` | zero padded |
-| 89 | 1 | `crc` | XOR of bytes **2..87** |
+| 89 | 1 | `crc` | XOR of bytes **3..88** |
 | 90 | 1 | `reserved` | `0x00` |
 
 ### Status codes
@@ -53,35 +53,21 @@ and require status `0x02` before trusting the arguments.
 
 ```python
 crc = 0
-for byte in packet[2:88]:
+for byte in packet[3:89]:
     crc ^= byte
-packet[88] = crc
+packet[89] = crc
 ```
 
-Note the range: the last argument byte (offset 88) is **not** part of the XOR.
+The checksum sits **after** the 80 argument bytes, so the arguments are at
+`9..88` and the byte at 89 is not an argument. Getting this off by one is easy
+and misleading: the EC still accepts most writes, so the mistake survives unit
+tests and a first round of hardware testing. It only shows up when a reply is
+validated, or when a command is acknowledged but does nothing.
 
-### Replies reuse the request's checksum
+Byte 90 is reserved and stays `0x00`; the EC returns it as `0x00` too.
 
-This firmware does **not** recompute the checksum when it answers. It leaves
-the request's byte 88 in place, so a reply that carries data fails a strict
-check. Verified on hardware by varying an unused request argument and watching
-byte 88 of the reply follow it while the reply data stayed identical:
-
-| Request byte 10 | Request byte 88 | Reply byte 88 |
-| --- | --- | --- |
-| `00` | `98` | `98` |
-| `11` | `89` | `89` |
-| `AA` | `32` | `32` |
-| `FF` | `67` | `67` |
-
-So a reply is accepted when its checksum matches either the recomputed value or
-the checksum the request carried. `Packet.decode(..., accept_crc=...)` does
-exactly that, and `HidrawTransport` always passes the request checksum. The
-status byte and the echoed command class/id are still validated, which is what
-actually catches a misbehaving device.
-
-Byte 89 comes back non-zero on replies (`0x9F`, `0xCE`, ...) and is not part of
-either checksum; requests send `0x00` there and are accepted.
+A response echoes the request's `command_class` and `command_id` and carries a
+recomputed checksum, so both directions validate the same way.
 
 ## Commands
 
@@ -95,19 +81,42 @@ zones so the two halves of the cooling system agree.
 | Set power mode | `0x02` | 4 | `00`, `zone`, `mode`, `manual_fan` | status only |
 | Set fan RPM | `0x01` | 3 | `00`, `zone`, `rpm/100` | status only |
 | Set boost | `0x07` | 3 | `00`, `which`, `level` | status only |
-| Get power mode | `0x82` | 4 | `00`, `zone`, `00`, `00` | `args[2]` = mode |
+| Get power mode | `0x82` | 4 | `00`, `zone`, `00`, `00` | `args[2]` = mode, `args[3]` = manual fan |
+| Get fan target | `0x81` | 3 | `00`, `zone`, `00` | `args[2]` = RPM / 100 |
 | Get boost | `0x87` | 3 | `00`, `which`, `00` | `args[2]` = level |
 
-- `mode`: `0` balanced, `1` gaming, `2` creator, `4` custom.
-- `manual_fan`: `1` when a fixed RPM was set, `0` for automatic. Changing a fan
-  setting therefore requires re-sending the power mode with the new flag.
+- `mode`: `0` balanced, `1` gaming, `2` creator, `4` custom. Value `3` is
+  undefined; the reference implementations report that it trips an EC failsafe
+  which runs the fans at maximum, so never send it.
+- `manual_fan`: `1` puts the fan under host control, `0` returns it to the
+  firmware curve.
 - `which`: `1` CPU, `2` GPU. Boosts are only meaningful in custom mode.
 - `level`: `0` low, `1` normal, `2` high, `3` boost (CPU only on models that
   advertise the `boost` feature).
 - `rpm/100`: fan speed in 100 RPM units. This model accepts 3500–5000 RPM, so
-  the value is 35–50. `0` means "automatic".
-- In custom mode the fan is managed by the firmware; RPM writes are ignored.
+  the value is 35–50.
 
+#### Manual fan needs custom mode
+
+This is the part that is easy to get wrong, and it is not obvious from the
+arguments alone: with `mode` 0 or 1 the EC happily stores the setpoint and even
+reports `manual_fan = 1`, but the fans keep following the firmware curve. The
+setpoint is only acted on together with `mode = 4` (custom).
+
+Working sequence for a fixed speed:
+
+1. `0x02` for zone 1 and zone 2 with `mode = 4`, `manual_fan = 1`
+2. `0x01` for zone 1 and zone 2 with the setpoint
+3. in custom mode, optionally `0x07` for CPU and GPU boost levels
+
+Both mode writes go out before any setpoint, which is the order the reference
+implementations use. Returning to automatic is just step 1 with
+`manual_fan = 0`; no setpoint write is needed.
+
+The fans ramp rather than jump: a 5000 → 3500 change takes roughly 5–6 seconds,
+which is why a quick listen can miss it.
+
+### Battery Health Optimizer — class `0x07`
 ### Battery Health Optimizer — class `0x07`
 
 | Command | ID | `data_size` | Arguments | Response |
@@ -149,8 +158,8 @@ Static colour is `effect_id = 0x06` followed by `R`, `G`, `B`.
 2. `HIDIOCSFEATURE(91)` with the buffer (first byte is the report number `0`).
 3. Wait a few milliseconds.
 4. `HIDIOCGFEATURE(91)` into a zeroed buffer.
-5. Decode, accept the CRC if it matches the reply **or** the request, verify the
-   echoed class/id, require status `0x02`.
+5. Decode, verify the reply checksum, verify the echoed class/id and that
+   `data_size` matches, require status `0x02`.
 6. Retry up to 3 times; the device occasionally answers late.
 
 Measuring with `strace -e ioctl` is enough to see the exchange; `HIDIOCGFEATURE`
@@ -161,10 +170,11 @@ returns all 91 bytes, so no `read()` loop is needed.
 These are not needed for the features above, but are the interesting next steps
 (see [ROADMAP.md](../ROADMAP.md)):
 
-- reading the **actual** fan RPM (only the target is writable today)
+- reading the **actual** fan RPM: `0x0D/0x81` returns the setpoint, and no
+  tachometer command is known for this model
 - why the logo LED state query (`0x03/0x82`) returns `0` even right after a
-  successful write — either the lid logo is not illuminated on this model, or
-  the state lives in a different command
+  successful write — the lid logo exists on this model and does not light up,
+  so the write itself is probably encoded differently
 - MUX switch / Optimus state
 - display refresh-rate switching on models that Synapse handles
 - GPU TGP limits

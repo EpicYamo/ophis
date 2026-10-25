@@ -89,7 +89,6 @@ class HidrawTransport:
             self.open()
         assert self._fd is not None
         request = bytearray(packet.encode())
-        request_crc = request[88]
         last_error: Exception | None = None
 
         for _ in range(retries):
@@ -99,7 +98,7 @@ class HidrawTransport:
                 response = bytearray(PACKET_LEN)
                 response[0] = 0x00
                 fcntl.ioctl(self._fd, HIDIOCGFEATURE(PACKET_LEN), response)
-                reply = Packet.decode(bytes(response), accept_crc=request_crc)
+                reply = Packet.decode(bytes(response))
                 reply.check(packet)
                 return reply
             except (OSError, RazerError) as exc:

@@ -28,20 +28,47 @@ class DeviceTests(unittest.TestCase):
         self.assertEqual(modes[0].arguments[:4], bytes([0, 1, 1, 0]))
         self.assertEqual(modes[1].arguments[:4], bytes([0, 2, 1, 0]))
 
-    def test_set_fan_sets_manual_flag_then_rpm(self):
+    def test_set_fan_switches_to_custom_mode(self):
         self.device.state.power_mode = p.PowerMode.BALANCED
         self.device.set_fan_rpm(4200)
-        self.assertEqual(self.last().command_class, p.Class.POWER)
-        self.assertEqual(self.last().command_id, p.Cmd.FAN_SET_RPM)
-        self.assertEqual(self.last().arguments[2], 42)
         power_writes = [r for r in self.transport.requests if r.command_id == p.Cmd.POWER_SET_MODE]
+        self.assertEqual([r.arguments[1] for r in power_writes], [1, 2])
+        self.assertTrue(all(r.arguments[2] == p.PowerMode.CUSTOM for r in power_writes))
         self.assertTrue(all(r.arguments[3] == 1 for r in power_writes))
+        self.assertEqual(self.device.state.power_mode, p.PowerMode.CUSTOM)
+
+    def test_set_fan_writes_modes_before_setpoints(self):
+        self.device.set_fan_rpm(4200)
+        ids = [r.command_id for r in self.transport.requests][:4]
+        self.assertEqual(ids, [p.Cmd.POWER_SET_MODE, p.Cmd.POWER_SET_MODE,
+                               p.Cmd.FAN_SET_RPM, p.Cmd.FAN_SET_RPM])
+        setpoints = [r for r in self.transport.requests if r.command_id == p.Cmd.FAN_SET_RPM]
+        self.assertEqual([r.arguments[1] for r in setpoints], [1, 2])
+        self.assertEqual([r.arguments[2] for r in setpoints], [42, 42])
 
     def test_set_fan_zero_disables_manual_mode(self):
+        self.device.state.power_mode = p.PowerMode.CUSTOM
+        self.device.state.fan_rpm = 4200
         self.device.set_fan_rpm(0)
         power_writes = [r for r in self.transport.requests if r.command_id == p.Cmd.POWER_SET_MODE]
         self.assertTrue(all(r.arguments[3] == 0 for r in power_writes))
         self.assertFalse(any(r.command_id == p.Cmd.FAN_SET_RPM for r in self.transport.requests))
+        self.assertEqual(self.device.state.fan_rpm, 0)
+
+    def test_leaving_custom_mode_returns_the_fans_to_the_firmware(self):
+        self.device.state.fan_rpm = 4200
+        self.device.set_power_mode(p.PowerMode.BALANCED)
+        self.assertEqual(self.device.state.fan_rpm, 0)
+        power_writes = [r for r in self.transport.requests if r.command_id == p.Cmd.POWER_SET_MODE]
+        self.assertTrue(all(r.arguments[3] == 0 for r in power_writes))
+
+    def test_get_fan_target_reads_args_2_in_100_rpm_units(self):
+        self.transport.set_response(0x0D, 0x81, [0x00, 0x02, 0x23])
+        self.assertEqual(self.device.get_fan_target(2), 3500)
+
+    def test_get_power_state_reads_the_manual_flag(self):
+        self.transport.set_response(0x0D, 0x82, [0x00, 0x01, 0x04, 0x01])
+        self.assertEqual(self.device.get_power_state(1), (p.PowerMode.CUSTOM, True))
 
     def test_set_bho_encodes_flag_and_threshold(self):
         self.device.set_bho(True, 75)
