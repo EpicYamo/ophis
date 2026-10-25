@@ -87,14 +87,14 @@ def build_parser() -> argparse.ArgumentParser:
     apply_parser.add_argument("--file", default=None, help="use another profile file")
 
     animate = sub.add_parser("animate", help="run a per-key animation on the host")
-    animate.add_argument("name", choices=animations.ANIMATIONS)
+    animate.add_argument("name", choices=sorted(animations.EFFECTS))
     animate.add_argument("--seconds", type=float, default=0, help="0 runs until interrupted")
-    animate.add_argument("--color", default="FF6A00")
-    animate.add_argument("--secondary", default="0030FF")
-    animate.add_argument("--angle", type=float, default=30.0)
-    animate.add_argument("--speed", type=float, default=1.0)
-    animate.add_argument("--density", type=float, default=0.25)
-    animate.add_argument("--rainbow", action="store_true")
+    animate.add_argument("--color", default=None, help="RRGGBB")
+    animate.add_argument("--speed", type=int, default=None)
+    animate.add_argument("--angle", type=int, default=None)
+    animate.add_argument("--density", type=int, default=None)
+    animate.add_argument("--smooth", type=int, default=None)
+    animate.add_argument("--style", type=int, default=None)
 
     autostart = sub.add_parser("autostart", help="start the tray at login")
     autostart.add_argument("value", choices=["on", "off", "status"])
@@ -165,20 +165,22 @@ def emit(data: dict, as_json: bool, human: bool = False) -> None:
 def run_animation(args) -> int:
     from gi.repository import GLib
 
-    from .animations import AnimationEngine, Params
+    from .animations import AnimationEngine, default_params
 
     backend = DeviceBackend()
     if not backend.connected:
         print(backend.detail, file=sys.stderr)
         return 2
-    params = Params(
-        colour=parse_color(args.color),
-        secondary=parse_color(args.secondary),
-        speed=args.speed,
-        angle=args.angle,
-        density=args.density,
-        rainbow=args.rainbow,
-    )
+    params = default_params(args.name)
+    overrides = {
+        "colour": parse_color(args.color) if args.color else None,
+        "speed": args.speed,
+        "angle": args.angle,
+        "density": args.density,
+        "smooth": args.smooth,
+        "style": args.style,
+    }
+    params.apply({key: value for key, value in overrides.items() if value is not None})
     engine = AnimationEngine(backend.device)
     engine.start(args.name, params)
     loop = GLib.MainLoop()

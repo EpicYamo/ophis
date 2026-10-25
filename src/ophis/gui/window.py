@@ -12,11 +12,10 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from .. import animations, desktop, profile, protocol as p, sysinfo, thermal  # noqa: E402
-from ..animations import AnimationEngine, Params  # noqa: E402
-from .widgets import CurveEditor, KeyboardView, paint_cell  # noqa: E402
+from .. import desktop, profile, protocol as p, sysinfo, thermal  # noqa: E402
+from .widgets import CurveEditor  # noqa: E402
 
 PROFILE_CARDS = [
     ("Balanced", p.PowerMode.BALANCED, "power-profile-balanced-symbolic"),
@@ -63,13 +62,9 @@ class ControlWindow(Adw.ApplicationWindow):
         self.tray_enabled = tray_enabled
         self.profile = profile.load()
         self._syncing = False
-        self._frame = animations.blank()
-        self._paint_mode = False
 
-        device = getattr(backend, "device", None)
-        self.engine = (
-            AnimationEngine(device, on_frame=self._on_animation_frame) if device else None
-        )
+        self.engine = None
+        self.lighting = None
 
         self.toasts = Adw.ToastOverlay()
         self.set_content(self.toasts)
@@ -446,231 +441,11 @@ class ControlWindow(Adw.ApplicationWindow):
 
     # -- lighting -----------------------------------------------------------
     def _build_lighting(self) -> Gtk.Widget:
-        page = Adw.PreferencesPage()
+        from .lighting import LightingPage
 
-        preview_group = Adw.PreferencesGroup(
-            title="Preview", description="6x16 matrix, the same one the controller drives"
-        )
-        self.keyboard = KeyboardView()
-        self.keyboard.on_cell = self._on_cell_clicked
-        frame = Gtk.Frame()
-        frame.set_child(self.keyboard)
-        frame.add_css_class("preview")
-        preview_row = Adw.ActionRow()
-        preview_row.set_child(frame)
-        preview_row.set_activatable(False)
-        preview_group.add(preview_row)
-
-        paint_row = Adw.SwitchRow(
-            title="Paint keys", subtitle="Click a cell to set it to the primary colour"
-        )
-        paint_row.connect("notify::active", self._on_paint_mode)
-        preview_group.add(paint_row)
-
-        clear_row = self._row("Clear the matrix", "")
-        clear_button = Gtk.Button(label="Clear")
-        clear_button.set_valign(Gtk.Align.CENTER)
-        clear_button.connect("clicked", self._on_clear_frame)
-        clear_row.add_suffix(clear_button)
-        preview_group.add(clear_row)
-        page.add(preview_group)
-
-        effect_group = Adw.PreferencesGroup(title="Effect")
-
-        self.firmware_row = Adw.ComboRow(title="Firmware effect")
-        self.firmware_row.set_model(
-            Gtk.StringList.new([name for name, _ in FIRMWARE_EFFECTS])
-        )
-        self.firmware_row.connect("notify::selected", self._on_firmware_effect)
-        effect_group.add(self.firmware_row)
-
-        self.animation_row = Adw.ComboRow(
-            title="Host animation",
-            subtitle="Rendered on the CPU at about 24 frames per second",
-        )
-        self.animation_row.set_model(
-            Gtk.StringList.new([name for name, _ in HOST_ANIMATIONS])
-        )
-        self.animation_row.connect("notify::selected", self._on_animation_selected)
-        effect_group.add(self.animation_row)
-
-        colour_row = self._row("Primary colour", "Used by static, breathing and the animations")
-        self.colour_button = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog())
-        self.colour_button.set_valign(Gtk.Align.CENTER)
-        self.colour_button.connect("notify::rgba", self._on_colour_changed)
-        colour_row.add_suffix(self.colour_button)
-        effect_group.add(colour_row)
-
-        secondary_row = self._row("Secondary colour", "Second colour of the wave")
-        self.secondary_button = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog())
-        self.secondary_button.set_valign(Gtk.Align.CENTER)
-        self.secondary_button.connect("notify::rgba", self._on_colour_changed)
-        secondary_row.add_suffix(self.secondary_button)
-        effect_group.add(secondary_row)
-
-        speed_row = self._row("Speed", "")
-        self.speed_scale = self._scale(0.2, 3.0, 0.1, 1.0)
-        self.speed_scale.connect("value-changed", self._on_animation_option)
-        speed_row.add_suffix(self.speed_scale)
-        effect_group.add(speed_row)
-
-        angle_row = self._row("Wave angle", "Degrees")
-        self.angle_scale = self._scale(0, 359, 1, 30)
-        self.angle_scale.connect("value-changed", self._on_animation_option)
-        angle_row.add_suffix(self.angle_scale)
-        effect_group.add(angle_row)
-
-        density_row = self._row("Density", "Sparkle only")
-        self.density_scale = self._scale(0.05, 0.8, 0.05, 0.25)
-        self.density_scale.connect("value-changed", self._on_animation_option)
-        density_row.add_suffix(self.density_scale)
-        effect_group.add(density_row)
-        page.add(effect_group)
-
-        device_group = Adw.PreferencesGroup(title="Keyboard")
-        brightness_row = self._row("Brightness", "0 - 255")
-        self.brightness_scale = self._scale(0, 255, 5, 255)
-        self.brightness_scale.connect("value-changed", self._on_brightness)
-        brightness_row.add_suffix(self.brightness_scale)
-        device_group.add(brightness_row)
-
-        self.logo_row = Adw.ComboRow(title="Lid logo")
-        self.logo_row.set_model(Gtk.StringList.new(["Off", "On", "Breathing"]))
-        self.logo_row.connect("notify::selected", self._on_logo_changed)
-        device_group.add(self.logo_row)
-        page.add(device_group)
-        return page
-
-    def _primary(self) -> tuple[int, int, int]:
-        rgba = self.colour_button.get_rgba()
-        return (int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255))
-
-    def _secondary(self) -> tuple[int, int, int]:
-        rgba = self.secondary_button.get_rgba()
-        return (int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255))
-
-    def _params(self) -> Params:
-        return Params(
-            colour=self._primary(),
-            secondary=self._secondary(),
-            speed=float(self.speed_scale.get_value()),
-            angle=float(self.angle_scale.get_value()),
-            density=float(self.density_scale.get_value()),
-        )
-
-    def _on_firmware_effect(self, *_args) -> None:
-        if self._syncing:
-            return
-        index = self.firmware_row.get_selected()
-        if index < 0 or index >= len(FIRMWARE_EFFECTS):
-            return
-        name, effect = FIRMWARE_EFFECTS[index]
-
-        def write() -> None:
-            if self.engine is not None:
-                self.engine.stop()
-            self.animation_row.set_selected(0)
-            self.backend.set_effect(effect, self._primary(), 2, 1)
-            self.state.extra["effect"] = int(effect)
-            self.profile["lighting"]["effect"] = name.lower()
-            self.profile["lighting"]["colour"] = list(self._primary())
-            self._save_profile()
-            self.keyboard.set_matrix(
-                [[self._primary() for _ in range(animations.COLS)] for _ in range(animations.ROWS)]
-                if effect == p.Effect.STATIC
-                else animations.blank()
-            )
-
-        self._apply(write)
-
-    def _on_animation_selected(self, *_args) -> None:
-        if self._syncing:
-            return
-        index = self.animation_row.get_selected()
-        if index <= 0:
-            if self.engine is not None:
-                self.engine.stop()
-            return
-        name = HOST_ANIMATIONS[index][1]
-        if self.engine is None:
-            self.toast("Animations need a real device")
-            return
-        self._apply(self._start_animation, name)
-
-    def _start_animation(self, name: str) -> None:
-        assert self.engine is not None
-        self.engine.start(name, self._params())
-        self.profile["lighting"]["effect"] = f"animation:{name}"
-        self._save_profile()
-        if self.engine.last_error:
-            self.toast(self.engine.last_error)
-
-    def _on_animation_option(self, *_args) -> None:
-        if self._syncing:
-            return
-        if self.engine is not None and self.engine.running:
-            self.engine.effect.params = self._params()
-
-    def _on_colour_changed(self, *_args) -> None:
-        if self._syncing:
-            return
-        if self.engine is not None and self.engine.running:
-            self.engine.effect.params = self._params()
-            return
-        index = self.firmware_row.get_selected()
-        if 0 <= index < len(FIRMWARE_EFFECTS):
-            effect = FIRMWARE_EFFECTS[index][1]
-            if effect not in (p.Effect.SPECTRUM, p.Effect.WAVE, p.Effect.OFF):
-                self._apply(self.backend.set_effect, effect, self._primary(), 2, 1)
-        self.profile["lighting"]["colour"] = list(self._primary())
-        self._save_profile()
-
-    def _on_animation_frame(self, matrix) -> None:
-        self._frame = matrix
-        if self.stack.get_visible_child_name() == "lighting":
-            self.keyboard.set_matrix(matrix)
-        return False
-
-    def _on_paint_mode(self, row: Gtk.SwitchRow, _param) -> None:
-        self._paint_mode = row.get_active()
-        if self._paint_mode and self.engine is not None:
-            self.engine.stop()
-            self.animation_row.set_selected(0)
-
-    def _on_cell_clicked(self, row: int, col: int) -> None:
-        if not self._paint_mode:
-            return
-        self._frame = paint_cell(self._frame, row, col, self._primary())
-        self.keyboard.set_matrix(self._frame)
-        self._apply(self.backend.device.write_frame, self._frame)
-
-    def _on_clear_frame(self, *_args) -> None:
-        self._frame = animations.blank()
-        self.keyboard.set_matrix(self._frame)
-        if getattr(self.backend, "device", None) is not None:
-            self._apply(self.backend.device.write_frame, self._frame)
-
-    def _on_brightness(self, scale: Gtk.Scale) -> None:
-        if self._syncing:
-            return
-        value = int(scale.get_value())
-        self._apply(self.backend.set_brightness, value)
-        self.state.brightness = value
-        self.profile["lighting"]["brightness"] = value
-        self._save_profile()
-
-    def _on_logo_changed(self, *_args) -> None:
-        if self._syncing:
-            return
-        mode = self.logo_row.get_selected()
-
-        def write() -> None:
-            self.backend.set_logo(mode)
-            self.state.logo = mode
-            self.profile["lighting"]["logo"] = mode
-            self._save_profile()
-
-        self._apply(write)
+        self.lighting = LightingPage(self)
+        self.engine = self.lighting.engine
+        return self.lighting
 
     # -- battery ------------------------------------------------------------
     def _build_battery(self) -> Gtk.Widget:
@@ -836,6 +611,9 @@ class ControlWindow(Adw.ApplicationWindow):
         self.backend.refresh()
         self._sync_from_state()
 
+    def save_profile(self) -> None:
+        self._save_profile()
+
     def _save_profile(self) -> None:
         try:
             profile.save(self.profile)
@@ -866,17 +644,10 @@ class ControlWindow(Adw.ApplicationWindow):
                 "automatic" if auto else f"fixed at {int(self.state.fan_rpm)} RPM"
             )
 
-            self.brightness_scale.set_value(int(self.state.brightness))
-            self.logo_row.set_selected(int(self.state.logo) if int(self.state.logo) in (0, 1, 2) else 0)
-
-            colour = self.state.extra.get("color", (255, 255, 255))
-            rgba = Gdk.RGBA()
-            rgba.red, rgba.green, rgba.blue = (channel / 255 for channel in colour)
-            rgba.alpha = 1.0
-            self.colour_button.set_rgba(rgba)
-
             self.bho_switch.set_active(bool(self.state.bho_enabled))
             self.bho_scale.set_value(int(self.state.bho_threshold))
             self.bho_scale.set_sensitive(bool(self.state.bho_enabled))
         finally:
             self._syncing = False
+        if self.lighting is not None:
+            self.lighting.sync()

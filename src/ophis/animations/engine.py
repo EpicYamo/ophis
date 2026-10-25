@@ -28,23 +28,19 @@ class AnimationEngine:
         self.on_frame = on_frame
         self.effect = None
         self._source = 0
-        self._started = 0.0
-        self._frames = 0
-        self._last_frame = 0.0
+        self._last_tick = 0.0
         self._slow = 0
         self.last_error: str | None = None
 
-    # -- lifecycle ----------------------------------------------------------
     @property
     def running(self) -> bool:
         return self._source != 0
 
     def start(self, name: str, params: effects.Params | None = None) -> None:
         self.stop()
-        self.effect = effects.create(name, params)
-        self._started = time.monotonic()
-        self._frames = 0
+        self.effect = effects.create(name, (params or effects.Params()).copy())
         self._slow = 0
+        self._last_tick = time.monotonic()
         self.last_error = None
 
         if self.effect.animated:
@@ -59,9 +55,15 @@ class AnimationEngine:
             self._source = 0
         self.effect = None
 
+    def update_params(self, params: effects.Params) -> None:
+        if self.effect is not None:
+            self.effect.params.apply(
+                {key: value for key, value in vars(params).items()}
+            )
+
     def _render_once(self) -> None:
         assert self.effect is not None
-        matrix = self.effect.render(0, 0.0)
+        matrix = self.effect.render(0.0)
         try:
             self.device.write_frame(matrix)
             self.device.activate_custom_frame()
@@ -74,7 +76,10 @@ class AnimationEngine:
     def _tick(self) -> bool:
         assert self.effect is not None
         now = time.monotonic()
-        matrix = self.effect.render(self._frames, now - self._started)
+        dt = min(0.2, now - self._last_tick)
+        self._last_tick = now
+
+        matrix = self.effect.render(dt)
         try:
             self.device.write_frame(matrix)
         except (OSError, p.RazerError) as exc:
@@ -83,15 +88,11 @@ class AnimationEngine:
             self._fallback()
             return False
 
-        self._frames += 1
         if self.on_frame is not None:
             self.on_frame(matrix)
 
-        elapsed = (now - self._last_frame) * 1000 if self._last_frame else 0
-        self._last_frame = now
-        self._slow = self._slow + 1 if elapsed > SLOW_FRAME_MS else 0
+        self._slow = self._slow + 1 if dt * 1000 > SLOW_FRAME_MS else 0
         if self._slow >= 10:
-            # Ten slow frames in a row: stop rather than hammer the EC.
             self.last_error = "animation stopped: the controller is not keeping up"
             self._source = 0
             self._fallback()

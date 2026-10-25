@@ -59,9 +59,12 @@ back from the device, not assumed:
 ## M4 — Lighting
 
 - [x] Firmware effects with colour, speed and direction
-- [x] Host-rendered animations at 24 fps
-- [x] Per-key frames and the `0x0B` activation sequence
-- [ ] Store and share animation presets
+- [x] Host-rendered effects at 24 fps, ported from Better RGB with the same
+      parameter ranges and defaults
+- [x] A settings panel generated per effect
+- [x] Per-key frames, paint mode and the `0x0B` activation sequence
+- [x] Per-effect settings stored in the profile
+- [ ] Store and share whole lighting presets
 - [ ] Keypress-reactive effect (needs read access to the keyboard input node)
 
 ## M5 — Packaging

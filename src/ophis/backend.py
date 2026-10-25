@@ -30,6 +30,8 @@ class Backend(Protocol):
         direction: int = 1,
     ) -> None: ...
     def set_color(self, red: int, green: int, blue: int) -> None: ...
+    def write_frame(self, rows) -> None: ...
+    def activate_custom_frame(self) -> None: ...
     def set_bho(self, enabled: bool, threshold: int) -> None: ...
     def set_logo(self, mode: int) -> None: ...
     def close(self) -> None: ...
@@ -73,6 +75,12 @@ class MockBackend:
     def set_bho(self, enabled: bool, threshold: int) -> None:
         self.state.bho_enabled = enabled
         self.state.bho_threshold = threshold
+
+    def write_frame(self, rows) -> None:
+        self.frame = rows
+
+    def activate_custom_frame(self) -> None:
+        pass
 
     def set_logo(self, mode: int) -> None:
         self.state.logo = mode
@@ -151,6 +159,12 @@ class DeviceBackend:
 
     def set_bho(self, enabled: bool, threshold: int) -> None:
         self.device.set_bho(enabled, threshold)
+
+    def write_frame(self, rows) -> None:
+        self.device.write_frame(rows)
+
+    def activate_custom_frame(self) -> None:
+        self.device.activate_custom_frame()
 
     def set_logo(self, mode: int) -> None:
         self.device.set_logo(mode)

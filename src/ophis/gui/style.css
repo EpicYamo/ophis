@@ -82,3 +82,45 @@ scale trough highlight {
 scale slider {
   background-color: #ffffff;
 }
+
+.section-title {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.38);
+  margin-left: 4px;
+}
+
+.effect-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.effect-list {
+  background: transparent;
+}
+
+.effect-list row {
+  border-radius: 10px;
+  margin: 2px 0;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.effect-list row:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.effect-list row:selected {
+  background-color: rgba(68, 214, 44, 0.15);
+  color: #ffffff;
+}
+
+.settings {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 10px;
+}
+
+.frame .preview {
+  border-radius: 12px;
+}

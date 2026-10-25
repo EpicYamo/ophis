@@ -13,8 +13,11 @@ window into a background app with animations.
 
 - charge limit, performance profiles, fan control and lighting verified on the
   target laptop
-- host-rendered per-key animations at 24 fps: rainbow wave, wheel, sparkle,
-  rain, lightning, matrix, flame
+- host-rendered effects at 24 fps, ported from Better RGB: breathing, wave,
+  sparkle, wheel, lightning, flame, rain, matrix and zoned static, with the
+  original parameter ranges and defaults
+- per-effect settings panel generated from each effect's declaration
+- paint mode that activates the custom frame before writing cells
 - per-key matrix preview with paint mode
 - fan curves driven by the hottest kernel sensor, with a draggable editor
 - temperature readouts for CPU, GPU and NVMe

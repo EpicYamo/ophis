@@ -37,10 +37,12 @@ acknowledged, and silently ignored.
 - **Fan control** — automatic, a fixed 3500–5000 RPM target, or a temperature
   driven curve that runs while the app is open.
 - **Temperatures** — CPU, GPU and NVMe, read from the kernel sensors.
-- **Lighting** — the firmware's own effects (static, breathing, spectrum, wave,
-  reactive, starlight) with colour and speed, plus host-rendered per-key
-  animations: rainbow wave with an adjustable angle, wheel, sparkle, rain,
-  lightning, matrix and flame.
+- **Lighting** — nine host-rendered effects ported from
+  [Better RGB](https://github.com/EpicYamo/Better-RGB-for-Tongfang-ITE8291):
+  breathing, wave with an adjustable angle, sparkle, wheel, lightning, flame,
+  rain, matrix (four styles) and zoned static, each with the same parameter
+  ranges and defaults as the original. The firmware's spectrum, reactive and
+  starlight effects are still available.
 - **Per-key editor** — paint individual cells of the 6x16 matrix.
 - **Lid logo** — on, off, breathing, with its state read back from the device.
 - **Battery care** — charge limit between 50% and 80%, stored in the controller
@@ -64,7 +66,7 @@ sudo udevadm trigger --action=change --subsystem-match=hidraw
 # Optional: a proper tray icon on GNOME
 sudo apt install libayatana-appindicator-glib2 gir1.2-ayatanaappindicatorglib-2.0
 
-make test        # 43 unit tests, no hardware needed
+make test        # 46 unit tests, no hardware needed
 make run         # GUI
 make tray        # GUI in the background with a tray icon
 make preview     # GUI with a fake device
@@ -140,20 +142,25 @@ frame -> 6 x 0x03/0x0B (one per row, 48 colour bytes)
       -> 0x03/0x0A with 0x05/0x00 (activate the custom frame)
 ```
 
-| Animation | What it does |
+| Effect | Controls |
 | --- | --- |
-| Rainbow wave | gradient band moving along an adjustable angle |
-| Wheel | radial rainbow rotating around the matrix centre |
-| Sparkle | random cells fading out |
-| Rain | falling columns with a trail |
-| Lightning | short bolts with a decaying glow |
-| Matrix | green code rain with a bright head |
-| Flame | warm flicker rising from the bottom |
+| Breathing | colour, speed, smoothness |
+| Wave | angle, speed |
+| Sparkle | speed, density |
+| Wheel | reverse, speed |
+| Lightning | speed, smoothness, strike width, concurrent strikes |
+| Flame | flicker speed, smoothness |
+| Rain | fall speed, density, colour count |
+| Matrix | streak speed, style (diagonal / columns / laser / ripple), density, colour count |
+| Static | horizontal or vertical zones with one colour each |
 
-Effects are pure functions of `(frame, seconds)`, so adding one is a small
-class in `src/ophis/animations/effects.py`. If the controller starts missing
-frames the engine stops itself and leaves a static colour rather than hammering
-the EC.
+Selecting an effect builds its settings panel from the effect's own
+declaration, so only the controls that matter appear — the same idea as the
+reference application's effect panel. See [docs/EFFECTS.md](docs/EFFECTS.md)
+for the parameter ranges and the maths that was ported.
+
+If the controller starts missing frames the engine stops itself and leaves a
+static colour rather than hammering the EC.
 
 ## How it works
 
@@ -216,7 +223,7 @@ operating system changes, which is why quitting Ophis does not reset it.
 ## Development
 
 ```bash
-make test     # 43 unit tests, no device required
+make test     # 46 unit tests, no device required
 make preview  # GUI against a fake device
 ```
 

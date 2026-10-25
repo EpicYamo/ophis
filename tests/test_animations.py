@@ -1,6 +1,6 @@
 import unittest
 
-from ophis.animations import COLS, ROWS, Params, create, hue_colour
+from ophis.animations import COLS, ROWS, default_params, hue_colour
 from ophis.animations import effects
 
 
@@ -12,45 +12,87 @@ class EffectTests(unittest.TestCase):
             for colour in row:
                 self.assertEqual(len(colour), 3)
                 for channel in colour:
-                    self.assertGreaterEqual(channel, 0)
-                    self.assertLessEqual(channel, 255)
+                    self.assertGreaterEqual(channel, 0, colour)
+                    self.assertLessEqual(channel, 255, colour)
 
     def test_every_effect_renders_a_valid_matrix(self):
-        params = Params(colour=(200, 40, 10), secondary=(0, 90, 255))
-        for name in effects.ANIMATIONS:
-            effect = create(name, params)
-            for frame in (0, 1, 7):
-                self.assert_matrix(effect.render(frame, frame * 0.04))
+        for name in effects.EFFECTS:
+            effect = effects.create(name, default_params(name))
+            for _ in range(3):
+                self.assert_matrix(effect.render(0.04))
 
-    def test_static_is_uniform(self):
-        matrix = create("static", Params(colour=(10, 20, 30))).render(0, 0.0)
+    def test_static_uses_one_colour_per_zone(self):
+        params = default_params("static")
+        params.zone_count = 1
+        params.zone_colours[0] = (10, 20, 30)
+        matrix = effects.create("static", params).render(0.04)
         self.assert_matrix(matrix)
-        self.assertTrue(all(colour == (10, 20, 30) for row in matrix for colour in row))
+        self.assertTrue(all(cell == (10, 20, 30) for row in matrix for cell in row))
 
-    def test_wave_changes_over_time(self):
-        effect = create("wave", Params(colour=(255, 0, 0), secondary=(0, 0, 255)))
-        first = effect.render(0, 0.0)
-        later = effect.render(1, 0.4)
+    def test_static_vertical_zones_split_columns(self):
+        params = default_params("static")
+        params.horizontal = False
+        params.zone_count = 2
+        params.zone_colours[0] = (255, 0, 0)
+        params.zone_colours[1] = (0, 0, 255)
+        matrix = effects.create("static", params).render(0.04)
+        self.assertEqual(matrix[0][0], (255, 0, 0))
+        self.assertEqual(matrix[0][COLS - 1], (0, 0, 255))
+
+    def test_wave_changes_between_frames(self):
+        params = default_params("wave")
+        effect = effects.create("wave", params)
+        first = effect.render(0.04)
+        later = effect.render(0.04)
         self.assertNotEqual(first, later)
 
-    def test_breathing_pulses_between_dark_and_bright(self):
-        effect = create("breathing", Params(colour=(255, 255, 255), speed=1.0))
-        frames = [effect.render(index, index * 0.1) for index in range(40)]
-        brightest = max(sum(sum(colour) for row in frame for colour in row) for frame in frames)
-        darkest = min(sum(sum(colour) for row in frame for colour in row) for frame in frames)
-        self.assertGreater(brightest, darkest * 3)
+    def test_breathing_pulses(self):
+        params = default_params("breathing")
+        effect = effects.create("breathing", params)
+        levels = []
+        for _ in range(80):
+            matrix = effect.render(0.04)
+            levels.append(sum(sum(cell) for row in matrix for cell in row))
+        self.assertGreater(max(levels), min(levels) * 3)
+
+    def test_reference_defaults(self):
+        wave = default_params("wave")
+        self.assertEqual((wave.angle, wave.speed), (0, 4))
+        breathing = default_params("breathing")
+        self.assertEqual((breathing.speed, breathing.smooth), (12, 60))
+        sparkle = default_params("sparkle")
+        self.assertEqual((sparkle.speed, sparkle.density), (5, 8))
+        lightning = default_params("lightning")
+        self.assertEqual(
+            (lightning.speed, lightning.smooth, lightning.width, lightning.concurrent),
+            (5, 10, 2, 1),
+        )
+        wheel = default_params("wheel")
+        self.assertEqual((wheel.reverse, wheel.speed), (False, 4))
+        flame = default_params("flame")
+        self.assertEqual((flame.speed, flame.smooth), (5, 8))
+        rain = default_params("rain")
+        self.assertEqual((rain.speed, rain.density, rain.palette_count), (5, 3, 1))
+        matrix = default_params("matrix")
+        self.assertEqual((matrix.speed, matrix.style, matrix.density), (5, 0, 2))
+
+    def test_every_effect_declares_settings(self):
+        for name, effect in effects.EFFECTS.items():
+            self.assertTrue(effect.SETTINGS, name)
+            for setting in effect.SETTINGS:
+                self.assertIn(
+                    setting.kind, ("slider", "switch", "choice", "colour", "palette", "zones")
+                )
 
     def test_unknown_effect_raises(self):
         with self.assertRaises(ValueError):
-            create("nope")
+            effects.create("nope")
 
-    def test_hue_colour_spans_the_wheel(self):
-        red = hue_colour(0.0)
-        green = hue_colour(1 / 3)
-        blue = hue_colour(2 / 3)
-        self.assertEqual(red, (255, 0, 0))
-        self.assertEqual(green, (0, 255, 0))
-        self.assertEqual(blue, (0, 0, 255))
+    def test_hue_colour_matches_the_reference(self):
+        self.assertEqual(hue_colour(0), (255, 0, 0))
+        self.assertEqual(hue_colour(120), (0, 255, 0))
+        self.assertEqual(hue_colour(240), (0, 0, 255))
+        self.assertEqual(hue_colour(360), (255, 0, 0))
 
 
 if __name__ == "__main__":

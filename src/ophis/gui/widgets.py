@@ -5,7 +5,10 @@ from __future__ import annotations
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk  # noqa: E402
+gi.require_version("Gdk", "4.0")
+gi.require_version("Gsk", "4.0")
+gi.require_version("Graphene", "1.0")
+from gi.repository import Gdk, Graphene, Gsk, Gtk  # noqa: E402
 
 from ..animations import COLS, ROWS, Matrix, blank  # noqa: E402
 
@@ -13,14 +16,18 @@ MIN_TEMP, MAX_TEMP = 30, 100
 MIN_RPM, MAX_RPM = 2000, 5000
 
 
-class KeyboardView(Gtk.DrawingArea):
-    """Draws the 6x16 matrix; clicking a cell reports its coordinates."""
+class KeyboardView(Gtk.Widget):
+    """Draws the 6x16 matrix; clicking a cell reports its coordinates.
+
+    Uses the snapshot API rather than cairo, so the preview works even when
+    python3-gi-cairo is missing (GTK's draw_func needs it).
+    """
 
     def __init__(self) -> None:
         super().__init__()
-        self.set_content_width(COLS * 34)
-        self.set_content_height(ROWS * 34)
-        self.set_draw_func(self._draw)
+        self.set_size_request(COLS * 28, ROWS * 34)
+        self.set_hexpand(True)
+        self.set_vexpand(True)
         self.matrix: Matrix = blank()
         self.on_cell = None
         self._selected: tuple[int, int] | None = None
@@ -38,8 +45,10 @@ class KeyboardView(Gtk.DrawingArea):
         self.queue_draw()
 
     def _cell_at(self, x: float, y: float) -> tuple[int, int] | None:
-        col = int(x // 34)
-        row = int(y // 34)
+        width = self.get_width() or COLS * 28
+        height = self.get_height() or ROWS * 34
+        col = int(x / (width / COLS))
+        row = int(y / (height / ROWS))
         if 0 <= row < ROWS and 0 <= col < COLS:
             return (row, col)
         return None
@@ -51,47 +60,64 @@ class KeyboardView(Gtk.DrawingArea):
             if self.on_cell is not None:
                 self.on_cell(*cell)
 
-    def _draw(self, _area, context, width, height) -> None:
-        context.set_source_rgb(0.06, 0.06, 0.07)
-        context.rectangle(0, 0, width, height)
-        context.fill()
+    def do_snapshot(self, snapshot) -> None:  # noqa: N802 - GTK name
+        width = float(self.get_width())
+        height = float(self.get_height())
+        if width <= 0 or height <= 0:
+            return
 
-        cell_w = 34
-        cell_h = 34
-        inset = 3.0
-        radius = 5.0
+        background = Gdk.RGBA()
+        background.parse("#0b0b0d")
+        snapshot.append_color(background, Graphene.Rect().init(0, 0, width, height))
+
+        cell_w = width / COLS
+        cell_h = height / ROWS
+        inset = min(3.0, cell_w / 6.0, cell_h / 6.0)
+        radius = min(6.0, cell_w / 4.0, cell_h / 4.0)
+
         for row in range(ROWS):
             for col in range(COLS):
                 red, green, blue = self.matrix[row][col]
+                colour = Gdk.RGBA()
                 if (red, green, blue) == (0, 0, 0):
-                    context.set_source_rgb(0.16, 0.16, 0.18)
+                    colour.parse("#26262b")
                 else:
-                    context.set_source_rgb(red / 255, green / 255, blue / 255)
-                x = col * cell_w + inset
-                y = row * cell_h + inset
-                w = cell_w - inset * 2
-                h = cell_h - inset * 2
-                context.rectangle(x, y, w, h)
-                context.fill()
+                    colour.red = red / 255
+                    colour.green = green / 255
+                    colour.blue = blue / 255
+                    colour.alpha = 1.0
+
+                rect = Graphene.Rect().init(
+                    col * cell_w + inset,
+                    row * cell_h + inset,
+                    cell_w - inset * 2,
+                    cell_h - inset * 2,
+                )
+                rounded = Gsk.RoundedRect()
+                rounded.init_from_rect(rect, radius)
+                snapshot.push_rounded_clip(rounded)
+                snapshot.append_color(colour, rect)
+                snapshot.pop()
 
                 if self._selected == (row, col):
-                    context.set_source_rgb(0.27, 0.84, 0.17)
-                    context.set_line_width(2.0)
-                    context.rectangle(x, y, w, h)
-                    context.stroke()
+                    accent = Gdk.RGBA()
+                    accent.parse("#44d62c")
+                    widths = [2.0] * 4
+                    colours = [accent] * 4
+                    snapshot.append_border(rounded, widths, colours)
 
 
-class CurveEditor(Gtk.DrawingArea):
+class CurveEditor(Gtk.Widget):
     """Temperature (x) against fan RPM (y), with three draggable points."""
 
     def __init__(self, points: list[list[int]] | None = None, on_changed=None) -> None:
         super().__init__()
-        self.set_content_height(190)
+        self.set_size_request(360, 190)
         self.set_hexpand(True)
-        self.set_draw_func(self._draw)
         self.on_changed = on_changed
         self.points = self._clean(points or [[45, 3500], [70, 4200], [85, 5000]])
         self._drag_index: int | None = None
+        self._drag_origin = (0.0, 0.0)
 
         drag = Gtk.GestureDrag()
         drag.connect("drag-begin", self._drag_begin)
@@ -132,8 +158,7 @@ class CurveEditor(Gtk.DrawingArea):
 
     # -- interaction --------------------------------------------------------
     def _drag_begin(self, _gesture, start_x, start_y) -> None:
-        width = self.get_width()
-        height = self.get_height()
+        width, height = self.get_width(), self.get_height()
         best = None
         best_distance = 1e9
         for index, (temp, rpm) in enumerate(self.points):
@@ -151,10 +176,9 @@ class CurveEditor(Gtk.DrawingArea):
     def _drag_update(self, _gesture, offset_x, offset_y) -> None:
         if self._drag_index is None:
             return
-        origin_x, origin_y = self._drag_origin
         temp, rpm = self._to_values(
-            origin_x + offset_x,
-            origin_y + offset_y,
+            self._drag_origin[0] + offset_x,
+            self._drag_origin[1] + offset_y,
             self.get_width(),
             self.get_height(),
         )
@@ -171,40 +195,46 @@ class CurveEditor(Gtk.DrawingArea):
             self.on_changed(self.get_points())
 
     # -- drawing ------------------------------------------------------------
-    def _draw(self, _area, context, width, height) -> None:
-        context.set_source_rgb(0.09, 0.09, 0.10)
-        context.rectangle(0, 0, width, height)
-        context.fill()
+    def do_snapshot(self, snapshot) -> None:  # noqa: N802 - GTK name
+        width = float(self.get_width())
+        height = float(self.get_height())
+        if width <= 0 or height <= 0:
+            return
 
-        context.set_line_width(1.0)
-        for temp in range(30, 101, 10):
+        background = Gdk.RGBA()
+        background.parse("#101013")
+        snapshot.append_color(background, Graphene.Rect().init(0, 0, width, height))
+
+        grid = Gdk.RGBA()
+        grid.parse("rgba(255,255,255,0.06)")
+        for temp in range(MIN_TEMP, MAX_TEMP + 1, 10):
             x, _ = self._to_widget(temp, MIN_RPM, width, height)
-            context.set_source_rgba(1, 1, 1, 0.06)
-            context.move_to(x, 0)
-            context.line_to(x, height)
-            context.stroke()
-        for rpm in range(2000, 5001, 500):
+            snapshot.append_color(grid, Graphene.Rect().init(x, 0, 1, height))
+        for rpm in range(MIN_RPM, MAX_RPM + 1, 500):
             _, y = self._to_widget(MIN_TEMP, rpm, width, height)
-            context.set_source_rgba(1, 1, 1, 0.06)
-            context.move_to(0, y)
-            context.line_to(width, y)
-            context.stroke()
+            snapshot.append_color(grid, Graphene.Rect().init(0, y, width, 1))
 
-        context.set_source_rgb(0.27, 0.84, 0.17)
-        context.set_line_width(3.0)
+        accent = Gdk.RGBA()
+        accent.parse("#44d62c")
+        builder = Gsk.PathBuilder()
         for index, (temp, rpm) in enumerate(self.points):
             x, y = self._to_widget(temp, rpm, width, height)
             if index == 0:
-                context.move_to(x, y)
+                builder.move_to(x, y)
             else:
-                context.line_to(x, y)
-        context.stroke()
+                builder.line_to(x, y)
+        snapshot.append_stroke(builder.to_path(), Gsk.Stroke.new(3.0), accent)
 
+        dot = Gdk.RGBA()
+        dot.parse("#f2f2f2")
         for temp, rpm in self.points:
             x, y = self._to_widget(temp, rpm, width, height)
-            context.set_source_rgb(0.95, 0.95, 0.95)
-            context.arc(x, y, 6.0, 0, 6.2832)
-            context.fill()
+            rect = Graphene.Rect().init(x - 6, y - 6, 12, 12)
+            rounded = Gsk.RoundedRect()
+            rounded.init_from_rect(rect, 6.0)
+            snapshot.push_rounded_clip(rounded)
+            snapshot.append_color(dot, rect)
+            snapshot.pop()
 
 
 def paint_cell(matrix: Matrix, row: int, col: int, colour) -> Matrix:
