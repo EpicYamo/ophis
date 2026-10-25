@@ -412,7 +412,9 @@ class Rain(Effect):
     name = "rain"
     label = "Rain"
     SETTINGS = (
-        Setting("speed", "Fall speed", "slider", 1, 10, 1, 5),
+        # Above 3 the drops skip rows and read as noise; the floor goes below
+        # the old minimum of 1.
+        Setting("speed", "Fall speed", "percent", 1, 100, 1, 66, (), 0.1, 3.0),
         Setting("density", "Density (drops)", "slider", 1, 5, 1, 3),
         Setting("palette", "Colours", "palette", 1, 5, 1, 1, RAIN_PALETTE),
     )

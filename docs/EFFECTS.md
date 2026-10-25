@@ -15,14 +15,14 @@ application written for an ITE8291 keyboard. The maths is ported directly:
 | Wheel | reverse (off), speed 0.5–12 (percentage) |
 | Lightning | speed 0.5–6 (percentage), smoothness 1–20 (10), strike width 1–4 (2), concurrent strikes 1–4 (1) |
 | Flame | flicker speed 1–10 (5), smoothness 1–20 (8) |
-| Rain | fall speed 1–10 (5), density 1–5 (3), colour count 1–5 (1) |
+| Rain | fall speed 0.1–3 (percentage), density 1–5 (3), colour count 1–5 (1) |
 | Matrix | streak speed 1–10 (5), style (diagonal / columns / laser / ripple), density 1–5 (2), colour count 1–3 (1) |
 | Static | horizontal or vertical zones, 1–6 zones with one colour each, plus per-key paint |
 
 Where the reference exposed a raw number that means nothing to a human, the
 slider is a percentage over the range that actually works. Breathing above a
 speed of about 8 stops looking like breathing and starts flickering; wave and
-wheel above 12 are too fast to follow, and lightning above 6 skips whole rows. The percentages map onto those ceilings
+wheel above 12 are too fast to follow, lightning above 6 skips whole rows, and rain above 3 skips rows. The percentages map onto those ceilings
 instead of exposing the raw 1–40 and 1–20 the original showed.
 
 Each effect declares its controls as `SETTINGS` on the class, and the window

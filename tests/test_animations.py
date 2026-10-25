@@ -79,7 +79,8 @@ class EffectTests(unittest.TestCase):
         flame = default_params("flame")
         self.assertEqual((flame.speed, flame.smooth), (5, 8))
         rain = default_params("rain")
-        self.assertEqual((rain.speed, rain.density, rain.palette_count), (5, 3, 1))
+        self.assertAlmostEqual(rain.speed, 2.0, places=2)
+        self.assertEqual((rain.density, rain.palette_count), (3, 1))
         matrix = default_params("matrix")
         self.assertEqual((matrix.speed, matrix.style, matrix.density), (5, 0, 2))
 
