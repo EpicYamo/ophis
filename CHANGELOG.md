@@ -32,6 +32,12 @@ window into a background app with animations.
 
 ### Fixed
 
+- colour buttons did nothing at all: the `notify::rgba` handlers were missing
+  the property argument, so every change raised inside GTK and was dropped
+- matrix speeds above 2, and the laser sweep style, which cut streaks in half
+  at the board edges
+- the window had no title bar, so it could not be moved, minimised or closed
+
 - the checksum is at byte 89 over bytes 3-88; it had been one byte off, so every
   packet carried a checksum the controller disagreed with
 - a fixed fan speed is only applied in the Custom profile; setting one now

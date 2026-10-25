@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.resources
+import signal
 import sys
 
 import gi
@@ -40,8 +41,6 @@ class OphisApp(Adw.Application):
         self._load_css()
         manager = Adw.StyleManager.get_default()
         manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
-        if self.want_tray:
-            self.hold()
 
     def do_activate(self) -> None:
         first = not self._started
@@ -55,9 +54,13 @@ class OphisApp(Adw.Application):
             ):
                 profile.apply(self.backend, self.profile)
                 self.backend.refresh()
-            self.window = ControlWindow(self, self.backend, tray_enabled=self.want_tray)
             if self.want_tray:
                 self._start_tray()
+            tray_ready = bool(self.tray is not None and self.tray.available)
+            if tray_ready:
+                # Keep running after the window is hidden.
+                self.hold()
+            self.window = ControlWindow(self, self.backend, tray_enabled=tray_ready)
 
         assert self.window is not None
         if not (first and self.want_tray):
@@ -135,6 +138,19 @@ def main(argv: list[str] | None = None) -> int:
     tray = "--tray" in args
     args = [arg for arg in args if arg not in ("--preview", "--tray")]
     app = OphisApp(preview=preview, tray=tray)
+
+    def stop(*_args) -> bool:
+        app.quit_cleanly()
+        return False
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            from gi.repository import GLib
+
+            GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, stop)
+        except Exception:
+            pass
+
     return app.run(args)
 
 

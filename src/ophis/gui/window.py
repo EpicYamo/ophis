@@ -12,7 +12,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Adw, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from .. import desktop, profile, protocol as p, sysinfo, thermal  # noqa: E402
 from .widgets import CurveEditor  # noqa: E402
@@ -69,9 +69,21 @@ class ControlWindow(Adw.ApplicationWindow):
         self.toasts = Adw.ToastOverlay()
         self.set_content(self.toasts)
 
+        toolbar = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        device = getattr(backend, "device", None)
+        header.set_title_widget(
+            Adw.WindowTitle(
+                title="Ophis",
+                subtitle=device.model if device else "Preview device",
+            )
+        )
+        toolbar.add_top_bar(header)
+        self.toasts.set_child(toolbar)
+
         root = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         root.add_css_class("ophis-root")
-        self.toasts.set_child(root)
+        toolbar.set_content(root)
 
         root.append(self._build_sidebar())
 
@@ -86,6 +98,7 @@ class ControlWindow(Adw.ApplicationWindow):
         self.stack.add_named(self._build_battery(), "battery")
         self.stack.add_named(self._build_settings(), "settings")
 
+        self._install_actions(header)
         self.connect("close-request", self._on_close)
         self._sync_from_state()
         self._refresh_battery()
@@ -166,7 +179,31 @@ class ControlWindow(Adw.ApplicationWindow):
         self.app.quit_cleanly()
         return True
 
-    # -- helpers ------------------------------------------------------------
+    def _install_actions(self, header: Adw.HeaderBar) -> None:
+        group = Gio.SimpleActionGroup()
+        entries = [("defaults", self._restore_defaults), ("quit", self.app.quit_cleanly)]
+        if self.tray_enabled:
+            entries.insert(0, ("minimize", self.hide))
+        for name, callback in entries:
+            action = Gio.SimpleAction.new(name, None)
+            action.connect("activate", lambda _action, _param, cb=callback: cb())
+            group.add_action(action)
+        self.insert_action_group("win", group)
+
+        menu = Gio.Menu()
+        if self.tray_enabled:
+            menu.append("Minimize to tray", "win.minimize")
+        menu.append("Restore default settings", "win.defaults")
+        menu.append("Quit", "win.quit")
+
+        button = Gtk.MenuButton(icon_name="open-menu-symbolic")
+        button.set_menu_model(menu)
+        button.set_tooltip_text("Menu")
+        header.pack_end(button)
+
+    def _restore_defaults(self) -> None:
+        self.app._restore_defaults()  # noqa: SLF001 - shared with the tray
+
     def _apply(self, action, *args) -> None:
         if self._syncing:
             return

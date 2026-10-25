@@ -49,7 +49,11 @@ acknowledged, and silently ignored.
 - **Battery care** — charge limit between 50% and 80%, stored in the controller
   and therefore independent of the operating system.
 - **Tray application** — runs in the background, click to open, right click to
-  restore defaults or quit.
+  restore defaults or quit. With the tray available the window's close button
+  hides it instead of quitting; quitting restores the firmware defaults.
+- **Normal window behaviour** — title bar, drag to move, menu with minimize,
+  restore defaults and quit. Ctrl+C in a terminal goes through the same
+  shutdown path, so the keyboard is never left in a half-applied state.
 - **Profile file** — one JSON file, applied at login if you want it.
 - **CLI** — every feature, with `--json` for scripting.
 

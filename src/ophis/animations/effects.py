@@ -462,45 +462,42 @@ class MatrixRain(Effect):
     name = "matrix"
     label = "Matrix"
     SETTINGS = (
-        Setting("speed", "Streak speed", "slider", 1, 10, 1, 5),
+        # A streak that moves faster than 2 crosses the whole board in a
+        # couple of frames and reads as flicker.
+        Setting("speed", "Streak speed", "percent", 1, 100, 1, 50, (), 0.1, 2.0),
         Setting(
             "style",
             "Style",
             "choice",
             0,
-            3,
+            2,
             1,
             0,
-            ("Diagonal streaks", "Vertical columns", "Laser sweep", "Ripple"),
+            ("Diagonal streaks", "Vertical columns", "Ripple"),
         ),
         Setting("density", "Density", "slider", 1, 5, 1, 2),
         Setting("palette", "Colours", "palette", 1, 3, 1, 1, MATRIX_PALETTE),
     )
     STREAKS = 5
-    LASERS = 3
     RIPPLES = 3
+    TAIL = 4.0
 
     def __init__(self, params: Params | None = None) -> None:
         super().__init__(params)
         self.angle = [math.radians(random.randrange(360)) for _ in range(self.STREAKS)]
-        self.position = [-20.0 - index * 6.0 for index in range(self.STREAKS)]
-        self.streak_speed = [0.2 + random.randrange(100) / 100.0 for _ in range(self.STREAKS)]
+        self.position = [-6.0 - index * 8.0 for index in range(self.STREAKS)]
+        self.streak_speed = [
+            0.6 + random.randrange(60) / 100.0 for _ in range(self.STREAKS)
+        ]
         self.streak_colour = [random.randrange(3) for _ in range(self.STREAKS)]
 
         self.col_position = [-float(random.randrange(8)) for _ in range(COLS)]
-        self.col_speed = [0.05 + random.randrange(100) / 300.0 for _ in range(COLS)]
+        self.col_speed = [0.05 + random.randrange(100) / 400.0 for _ in range(COLS)]
         self.col_colour = [random.randrange(3) for _ in range(COLS)]
-
-        self.laser_angle = [
-            random.randrange(4) * (math.pi / 2) for _ in range(self.LASERS)
-        ]
-        self.laser_position = [-20.0 - index * 8.0 for index in range(self.LASERS)]
-        self.laser_speed = [0.6 + random.randrange(100) / 100.0 for _ in range(self.LASERS)]
-        self.laser_colour = [random.randrange(3) for _ in range(self.LASERS)]
 
         self.ripple_x = [float(random.randrange(COLS)) for _ in range(self.RIPPLES)]
         self.ripple_y = [float(random.randrange(ROWS)) for _ in range(self.RIPPLES)]
-        self.ripple_radius = [index * 8.0 for index in range(self.RIPPLES)]
+        self.ripple_radius = [index * 7.0 for index in range(self.RIPPLES)]
         self.ripple_colour = [random.randrange(3) for _ in range(self.RIPPLES)]
 
         self.reroll = 0.0
@@ -510,95 +507,73 @@ class MatrixRain(Effect):
         step = self._step(dt)
         colour_count = max(1, min(3, self.params.palette_count))
         style = int(self.params.style)
-        speed_mul = 0.3 + self.params.speed * 0.15
+        speed_mul = 0.35 + self.params.speed * 0.25
         matrix = blank()
 
         def paint(row: int, col: int, colour_index: int, brightness: float) -> None:
+            if brightness <= 0.01:
+                return
             colour = self.params.palette[colour_index % colour_count]
-            matrix[row][col] = scale(colour, brightness)
+            candidate = scale(colour, brightness)
+            if sum(candidate) >= sum(matrix[row][col]):
+                matrix[row][col] = candidate
 
         if style == 0:
             self.reroll += step
             if self.reroll >= 60:
                 self.active_streaks = compute_prob_count(
-                    int(self.params.density), 1, 5
+                    int(self.params.density), 1, self.STREAKS
                 )
                 self.reroll = 0
             for row in range(ROWS):
                 for col in range(COLS):
-                    best, best_colour = 0.0, 0
                     for index in range(self.active_streaks):
-                        dir_x, dir_y = math.cos(self.angle[index]), math.sin(self.angle[index])
+                        dir_x = math.cos(self.angle[index])
+                        dir_y = math.sin(self.angle[index])
                         projection = col * dir_x + row * dir_y
-                        distance = abs(projection - self.position[index])
-                        if distance < 1.5:
-                            value = 1.0 - distance / 1.5
-                            if value > best:
-                                best, best_colour = value, self.streak_colour[index]
-                    paint(row, col, best_colour, min(1.0, best))
+                        delta = self.position[index] - projection
+                        if -0.7 < delta <= 0.0:
+                            brightness = 1.0 + delta / 0.7
+                        elif 0.0 < delta <= self.TAIL:
+                            brightness = 1.0 - delta / self.TAIL
+                        else:
+                            continue
+                        paint(row, col, self.streak_colour[index], brightness)
             for index in range(self.active_streaks):
                 self.position[index] += self.streak_speed[index] * speed_mul * step
-                if self.position[index] > 24:
-                    self.position[index] = -24.0
+                if self.position[index] > 26.0:
+                    self.position[index] = -self.TAIL
                     self.angle[index] = math.radians(random.randrange(360))
-                    self.streak_speed[index] = 0.2 + random.randrange(100) / 100.0
+                    self.streak_speed[index] = 0.6 + random.randrange(60) / 100.0
                     self.streak_colour[index] = random.randrange(colour_count)
 
         elif style == 1:
             for row in range(ROWS):
                 for col in range(COLS):
                     delta = self.col_position[col] - row
-                    brightness = 0.0
                     if -0.3 <= delta < 4.0:
                         brightness = 1.0 if delta < 0 else 1.0 - delta / 4.0
-                    paint(row, col, self.col_colour[col], max(0.0, brightness))
+                        paint(row, col, self.col_colour[col], brightness)
             for col in range(COLS):
                 self.col_position[col] += self.col_speed[col] * speed_mul * step
                 if self.col_position[col] > ROWS + 2:
                     self.col_position[col] = -float(random.randrange(6))
-                    self.col_speed[col] = 0.05 + random.randrange(100) / 300.0
+                    self.col_speed[col] = 0.05 + random.randrange(100) / 400.0
                     self.col_colour[col] = random.randrange(colour_count)
-
-        elif style == 2:
-            laser_count = 3 if self.params.density >= 4 else 2
-            for row in range(ROWS):
-                for col in range(COLS):
-                    best, best_colour = 0.0, 0
-                    for index in range(laser_count):
-                        dir_x = math.cos(self.laser_angle[index])
-                        dir_y = math.sin(self.laser_angle[index])
-                        projection = col * dir_x + row * dir_y
-                        distance = abs(projection - self.laser_position[index])
-                        if distance < 0.6:
-                            value = 1.0 - distance / 0.6
-                            if value > best:
-                                best, best_colour = value, self.laser_colour[index]
-                    paint(row, col, best_colour, min(1.0, best))
-            for index in range(laser_count):
-                self.laser_position[index] += self.laser_speed[index] * speed_mul * 1.5 * step
-                if self.laser_position[index] > 24:
-                    self.laser_position[index] = -24.0 - random.randrange(20)
-                    self.laser_angle[index] = random.randrange(4) * (math.pi / 2)
-                    self.laser_speed[index] = 0.6 + random.randrange(100) / 100.0
-                    self.laser_colour[index] = random.randrange(colour_count)
 
         else:
             for row in range(ROWS):
                 for col in range(COLS):
-                    best, best_colour = 0.0, 0
                     for index in range(self.RIPPLES):
                         distance = math.hypot(
                             col - self.ripple_x[index], row - self.ripple_y[index]
                         )
                         ring = abs(distance - self.ripple_radius[index])
-                        if ring < 1.2:
-                            value = 1.0 - ring / 1.2
-                            if value > best:
-                                best, best_colour = value, self.ripple_colour[index]
-                    paint(row, col, best_colour, min(1.0, best))
+                        if ring < 1.0:
+                            paint(row, col, self.ripple_colour[index], 1.0 - ring)
             for index in range(self.RIPPLES):
-                self.ripple_radius[index] += speed_mul * 0.25 * step
-                if self.ripple_radius[index] > 20:
+                self.ripple_radius[index] += speed_mul * 0.12 * step
+                if self.ripple_radius[index] > 18:
                     self.ripple_x[index] = float(random.randrange(COLS))
                     self.ripple_y[index] = float(random.randrange(ROWS))
                     self.ripple_radius[index] = 0.0

@@ -434,7 +434,7 @@ class LightingPage(Gtk.Box):
         setattr(params, key, int(combo.get_active()))
         self._changed(name, params, restart=name in ("matrix", "static"))
 
-    def _on_colour(self, button, name: str, params: Params, _index) -> None:
+    def _on_colour(self, button, _pspec, name: str, params: Params, _index) -> None:
         params.colour = self._colour_of(button)
         self._changed(name, params, restart=(name == "static"))
 
@@ -443,7 +443,7 @@ class LightingPage(Gtk.Box):
         self._build_settings(name, params)
         self._changed(name, params)
 
-    def _on_palette_colour(self, button, name: str, params: Params, index: int) -> None:
+    def _on_palette_colour(self, button, _pspec, name: str, params: Params, index: int) -> None:
         params.palette[index] = self._colour_of(button)
         self._changed(name, params)
 
@@ -451,7 +451,7 @@ class LightingPage(Gtk.Box):
         params.zone_count = int(scale.get_value())
         self._changed(name, params, restart=True)
 
-    def _on_zone_colour(self, button, name: str, params: Params, index: int) -> None:
+    def _on_zone_colour(self, button, _pspec, name: str, params: Params, index: int) -> None:
         params.zone_colours[index] = self._colour_of(button)
         self._changed(name, params, restart=True)
 

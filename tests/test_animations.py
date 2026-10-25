@@ -82,7 +82,8 @@ class EffectTests(unittest.TestCase):
         self.assertAlmostEqual(rain.speed, 2.0, places=2)
         self.assertEqual((rain.density, rain.palette_count), (3, 1))
         matrix = default_params("matrix")
-        self.assertEqual((matrix.speed, matrix.style, matrix.density), (5, 0, 2))
+        self.assertAlmostEqual(matrix.speed, 1.04, places=2)
+        self.assertEqual((matrix.style, matrix.density), (0, 2))
 
     def test_every_effect_declares_settings(self):
         for name, effect in effects.EFFECTS.items():

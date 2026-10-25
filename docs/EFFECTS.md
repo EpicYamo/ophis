@@ -16,7 +16,7 @@ application written for an ITE8291 keyboard. The maths is ported directly:
 | Lightning | speed 0.5–6 (percentage), smoothness 1–20 (10), strike width 1–4 (2), concurrent strikes 1–4 (1) |
 | Flame | flicker speed 1–10 (5), smoothness 1–20 (8) |
 | Rain | fall speed 0.1–3 (percentage), density 1–5 (3), colour count 1–5 (1) |
-| Matrix | streak speed 1–10 (5), style (diagonal / columns / laser / ripple), density 1–5 (2), colour count 1–3 (1) |
+| Matrix | streak speed 0.1–2 (percentage), style (diagonal / columns / ripple), density 1–5 (2), colour count 1–3 (1) |
 | Static | horizontal or vertical zones, 1–6 zones with one colour each, plus per-key paint |
 
 Where the reference exposed a raw number that means nothing to a human, the
@@ -46,8 +46,10 @@ line; there is no separate UI code to keep in sync.
   and maps heat to black/red/yellow/white.
 - **Rain** trails are drawn towards the nearest cell in each row, because the
   reference keymap is not a perfect grid.
-- **Matrix** has four styles; density only affects the diagonal and laser
-  styles, exactly as in the original panel.
+- **Matrix** has three styles now: diagonal streaks with a comet tail,
+  vertical columns, and ripples. Density affects the diagonal style. The
+  original laser sweep was dropped: it produced streaks that were cut in half
+  at the board edges, and no speed looked right on a 6x16 matrix.
 - **Static** splits rows (horizontal) or columns (vertical) into zones. Its
   per-key paint switch hands the board over to a manual 6x16 frame: drag to
   paint, right-click to erase, Fill and Clear for the whole board. The frame is
