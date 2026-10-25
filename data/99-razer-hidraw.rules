@@ -1,17 +1,24 @@
 # Razer Blade 14 (2022) RZ09-0427 - USB 1532:028C
 #
-# Grants the active desktop session access to the vendor-defined HID control
-# interface (usage page 0xFF00) without a password prompt.
+# Grants the desktop session access to the vendor-defined HID control interface
+# (usage page 0xFF00) without a password prompt.
+#
+# Access is granted twice, on purpose:
+#   - TAG+="uaccess" lets systemd-logind add a per-user ACL on the device
+#   - GROUP="plugdev" is the fallback: it works even when logind does not apply
+#     the ACL (some sessions, containers, or after revoking permissions)
 #
 # Install:
 #   sudo cp 99-razer-hidraw.rules /etc/udev/rules.d/
 #   sudo udevadm control --reload-rules
-#   sudo udevadm trigger
+#   sudo udevadm trigger --action=change --subsystem-match=hidraw
 #
-# Verify (the Razer node should now show a "+" ACL for your user):
-#   getfacl /dev/hidraw* 2>/dev/null | grep -A2 1532
+# Verify (group must be plugdev, mode crw-rw----):
+#   ls -l /dev/hidraw*
 #
 # Remove:
 #   sudo rm /etc/udev/rules.d/99-razer-hidraw.rules
+#   sudo udevadm control --reload-rules
+#   sudo udevadm trigger --action=change --subsystem-match=hidraw
 
-KERNEL=="hidraw*", ATTRS{idVendor}=="1532", ATTRS{idProduct}=="028c", TAG+="uaccess", MODE="0660"
+KERNEL=="hidraw*", ATTRS{idVendor}=="1532", ATTRS{idProduct}=="028c", MODE="0660", GROUP="plugdev", TAG+="uaccess"
