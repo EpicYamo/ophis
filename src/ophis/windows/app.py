@@ -33,9 +33,11 @@ class OphisApp:
         preview: bool = False,
         tray: bool = False,
         show: bool = False,
+        enable_tray: bool = True,
     ) -> None:
         self.quitting = False
         self.preview = preview
+        self.enable_tray = enable_tray
         self.start_hidden = tray and not show
         QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
             Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
@@ -88,7 +90,7 @@ class OphisApp:
 
     # -- tray ---------------------------------------------------------------
     def _configure_tray(self) -> None:
-        if not QSystemTrayIcon.isSystemTrayAvailable():
+        if not self.enable_tray or not QSystemTrayIcon.isSystemTrayAvailable():
             return
         self.tray = QSystemTrayIcon(app_icon(), self.application)
         self.tray.setToolTip("Ophis")
@@ -253,6 +255,16 @@ def main(argv: list[str] | None = None) -> int:
         return _probe()
     if "--restore" in args:
         return _restore()
+    if "--self-test" in args:
+        # Used by CI: build the whole window with a fake device, let the event
+        # loop run briefly, then shut down through the normal quit path.
+        from PySide6.QtCore import QTimer
+
+        controller = OphisApp(preview=True, tray=False, show=True, enable_tray=False)
+        QTimer.singleShot(2000, controller.quit_cleanly)
+        code = controller.application.exec()
+        print("self-test ok")
+        return code
 
     preview = "--preview" in args
     tray = "--tray" in args
