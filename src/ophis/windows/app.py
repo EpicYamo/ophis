@@ -216,6 +216,15 @@ def _probe() -> int:
     if callable(describe):
         for key, value in describe().items():
             print(f"{key}: {value}")
+    diagnose = getattr(transport, "diagnose", None)
+    if callable(diagnose):
+        rows = diagnose()
+        if rows:
+            print("hid interfaces:")
+            for row in rows:
+                print(f"  {row}")
+        else:
+            print("hid interfaces: none")
     if backend.connected:
         state = backend.state
         print(f"power mode: {int(state.power_mode)}")

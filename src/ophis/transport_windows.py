@@ -25,6 +25,8 @@ VENDOR_USAGE_PAGE = 0xFF00
 
 GENERIC_READ = 0x80000000
 GENERIC_WRITE = 0x40000000
+FILE_SHARE_READ = 0x00000001
+FILE_SHARE_WRITE = 0x00000002
 OPEN_EXISTING = 3
 DIGCF_PRESENT = 0x02
 DIGCF_DEVICEINTERFACE = 0x10
@@ -289,32 +291,86 @@ class WindowsHidTransport:
                 "Is the laptop's Razer HID device enabled in Device Manager?"
             )
 
+        probes: list[tuple[str, HIDP_CAPS]] = []
         sharing_error = False
         other_error = ""
         for path in candidates:
-            handle = self._create_exclusive(path)
+            handle = self._create_shared(path)
             if handle is None:
                 code = ctypes.get_last_error()
                 if code == ERROR_SHARING_VIOLATION:
                     sharing_error = True
-                else:
+                elif code:
                     other_error = _error_text(code)
                 continue
             try:
-                if _is_vendor_collection(self._hid, handle):
-                    return path
+                attributes = HIDD_ATTRIBUTES()
+                attributes.Size = ctypes.sizeof(attributes)
+                if not self._hid.HidD_GetAttributes(
+                    handle, ctypes.byref(attributes)
+                ):
+                    continue
+                if (
+                    attributes.VendorID != VENDOR_ID
+                    or attributes.ProductID != PRODUCT_ID
+                ):
+                    continue
+                caps = _caps(self._hid, handle)
+                if caps is not None:
+                    probes.append((path, caps))
             finally:
                 self._kernel32.CloseHandle(handle)
 
-        if sharing_error:
+        if not probes:
+            if sharing_error:
+                raise RazerError(
+                    "could not inspect the Razer HID interfaces because another "
+                    "program holds them. Close Razer Synapse and any other HID "
+                    "tool, then retry."
+                )
             raise RazerError(
-                "the Razer control interface is in use by another program. "
-                "Close Razer Synapse (or its services) and try again."
+                "Razer HID interfaces could not be inspected"
+                + (f": {other_error}" if other_error else "")
             )
-        raise RazerError(
-            "Razer control interface not found"
-            + (f": {other_error}" if other_error else "")
+
+        # The control interface is the one with the 91-byte feature report.
+        # Its top-level usage page is often Generic Desktop (mouse), with a
+        # vendor-defined collection nested inside, so UsagePage alone is not
+        # enough to identify it.
+        selected = [
+            path for path, caps in probes if caps.UsagePage == VENDOR_USAGE_PAGE
+        ]
+        if not selected:
+            selected = [
+                path
+                for path, caps in probes
+                if caps.FeatureReportByteLength == PACKET_LEN
+            ]
+        if not selected:
+            detail = ", ".join(
+                f"{caps.UsagePage:04x}:{caps.Usage:04x}/{caps.FeatureReportByteLength}b"
+                for _path, caps in probes
+            )
+            raise RazerError(
+                "Razer HID device found, but no interface exposes the 91-byte "
+                f"feature report (saw {detail})"
+            )
+        return selected[0]
+
+    def _create_shared(self, path: str):
+        assert self._kernel32 is not None
+        handle = self._kernel32.CreateFileW(
+            path,
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            0,
+            None,
         )
+        if handle is None or handle == ctypes.c_void_p(-1).value:
+            return None
+        return handle
 
     def _create_exclusive(self, path: str):
         assert self._kernel32 is not None
@@ -349,13 +405,57 @@ class WindowsHidTransport:
                 "not the Razer Blade control interface "
                 f"(found {attributes.VendorID:04x}:{attributes.ProductID:04x})"
             )
-        if not _is_vendor_collection(self._hid, handle):
+        caps = _caps(self._hid, handle)
+        if not _is_control_collection(caps):
             self._kernel32.CloseHandle(handle)
-            raise RazerError("this HID collection does not expose the vendor interface")
+            raise RazerError(
+                "this HID interface does not expose the 91-byte control report"
+            )
 
         self._handle = handle
-        self._caps = _caps(self._hid, handle)
+        self._caps = caps
         self.last_open_error = ""
+
+    # -- diagnostics -------------------------------------------------------
+    def diagnose(self) -> list[dict]:
+        """Describe every Razer HID interface, without requiring a lock."""
+        if self._setupapi is None or self._kernel32 is None:
+            try:
+                self._setupapi, self._hid, self._kernel32 = _load_libraries()
+            except RazerError as exc:
+                return [{"error": str(exc)}]
+        assert self._setupapi is not None
+        assert self._hid is not None
+        assert self._kernel32 is not None
+        try:
+            paths = _hid_interface_paths(self._setupapi, self._kernel32)
+        except RazerError as exc:
+            return [{"error": str(exc)}]
+        rows: list[dict] = []
+        for path in paths:
+            if not _looks_like_razer(path):
+                continue
+            row: dict = {"path": path}
+            handle = self._create_shared(path)
+            if handle is None:
+                row["error"] = _error_text()
+                rows.append(row)
+                continue
+            try:
+                attributes = HIDD_ATTRIBUTES()
+                attributes.Size = ctypes.sizeof(attributes)
+                if self._hid.HidD_GetAttributes(handle, ctypes.byref(attributes)):
+                    row["usb"] = f"{attributes.VendorID:04x}:{attributes.ProductID:04x}"
+                caps = _caps(self._hid, handle)
+                if caps is not None:
+                    row["usage_page"] = f"0x{caps.UsagePage:04x}"
+                    row["usage"] = f"0x{caps.Usage:04x}"
+                    row["feature_bytes"] = caps.FeatureReportByteLength
+                    row["control"] = _is_control_collection(caps)
+            finally:
+                self._kernel32.CloseHandle(handle)
+            rows.append(row)
+        return rows
 
     # -- operation ---------------------------------------------------------
     def transact(self, packet: Packet, retries: int = 3) -> Packet:
@@ -414,9 +514,13 @@ def _caps(hid, handle) -> HIDP_CAPS | None:
         hid.HidD_FreePreparsedData(preparsed)
 
 
-def _is_vendor_collection(hid, handle) -> bool:
-    caps = _caps(hid, handle)
+def _is_control_collection(caps: HIDP_CAPS | None) -> bool:
     if caps is None:
         return False
-    # Accept the vendor page; some EC firmware leaves the usage at 0x0001.
-    return caps.UsagePage == VENDOR_USAGE_PAGE
+    # The vendor page is the strongest signal, but on this laptop the control
+    # collection is nested under a Generic Desktop/mouse top-level collection.
+    # Its 91-byte feature report is then the reliable marker.
+    return (
+        caps.UsagePage == VENDOR_USAGE_PAGE
+        or caps.FeatureReportByteLength == PACKET_LEN
+    )

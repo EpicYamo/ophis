@@ -31,6 +31,8 @@ It prints:
 
 - whether the controller could be opened,
 - the exclusive lock status and the HID usage page,
+- every Razer HID interface with its usage page, feature-report size and
+  whether it is the 91-byte control interface,
 - the current brightness, fan target, power mode and charge limit,
 - any Razer/Synapse processes that are still running.
 

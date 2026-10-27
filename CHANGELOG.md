@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-10-28
+
+### Fixed
+
+- Windows: the control interface is now identified by its 91-byte feature
+  report, not only by the top-level usage page. On this laptop the vendor
+  collection is nested under a Generic Desktop/mouse interface, so the old
+  check skipped it and reported the keyboard interface's sharing error as
+  "close Razer Synapse" even when Synapse was not running.
+- Windows: `Ophis-cli.exe --probe` now lists every Razer HID interface with
+  its usage page, feature-report size and whether it is the control interface.
+
 ## [0.3.0] - 2026-10-26
 
 ### Added

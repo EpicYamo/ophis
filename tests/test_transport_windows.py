@@ -6,7 +6,12 @@ import ctypes
 import unittest
 
 from ophis import protocol as p
-from ophis.transport_windows import WindowsHidTransport, _looks_like_razer
+from ophis.transport_windows import (
+    HIDP_CAPS,
+    WindowsHidTransport,
+    _is_control_collection,
+    _looks_like_razer,
+)
 
 
 class FakeHid:
@@ -46,6 +51,22 @@ class WindowsTransportTests(unittest.TestCase):
         self.assertFalse(
             _looks_like_razer(r"\\?\hid#vid_046d&pid_c52b&mi_00#8&5678")
         )
+
+    def test_control_collection_by_feature_length(self) -> None:
+        caps = HIDP_CAPS()
+        caps.UsagePage = 0x0001  # Generic Desktop: the top-level mouse collection
+        caps.Usage = 0x0002
+        caps.FeatureReportByteLength = p.PACKET_LEN
+        self.assertTrue(_is_control_collection(caps))
+
+        caps.FeatureReportByteLength = 0
+        self.assertFalse(_is_control_collection(caps))
+
+        caps.UsagePage = 0xFF00
+        caps.FeatureReportByteLength = 0
+        self.assertTrue(_is_control_collection(caps))
+
+        self.assertFalse(_is_control_collection(None))
 
     def test_transact_roundtrip(self) -> None:
         transport = WindowsHidTransport(settle=0.0, gap=0.0)

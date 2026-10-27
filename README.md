@@ -78,7 +78,7 @@ Download `ophis_<version>_all.deb` from the
 [releases page](https://github.com/EpicYamo/ophis/releases) and install it:
 
 ```bash
-sudo apt install ./ophis_0.3.0_all.deb
+sudo apt install ./ophis_0.3.1_all.deb
 ```
 
 It installs `ophis`, `ophis-gui` and `ophis-tray`, the desktop entry, the icon
@@ -99,7 +99,7 @@ sudo udevadm trigger --action=change --subsystem-match=hidraw
 # Optional: a proper tray icon on GNOME
 sudo apt install gir1.2-ayatanaappindicator3-0.1
 
-make test        # 50 unit tests, no hardware needed
+make test        # 51 unit tests, no hardware needed
 make run         # GTK4 GUI
 make tray        # GUI in the background with a tray icon
 make preview     # GUI with a fake device
@@ -124,7 +124,8 @@ Before the first run, quit **Razer Synapse** (and remove it from startup if you
 do not need it for firmware updates). Ophis opens the controller exclusively;
 if another program already holds it, the window explains that instead of
 silently competing with it. `Ophis-cli.exe --probe` prints the lock state,
-device details and any Razer processes that are still running.
+every Razer HID interface (usage page, feature-report size, whether it is the
+control interface) and any Razer processes that are still running.
 
 Ophis needs **no administrator rights** and installs **no driver**. It is a
 normal user-mode HID application. The executable is unsigned, so Windows
@@ -339,7 +340,7 @@ operating system changes, which is why quitting Ophis does not reset it.
 ## Development
 
 ```bash
-make test     # 50 unit tests, no device required
+make test     # 51 unit tests, no device required
 make preview  # Linux GUI against a fake device
 ```
 

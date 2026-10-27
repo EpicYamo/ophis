@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ophis"
-version = "0.3.0"
+version = "0.3.1"
 description = "Control centre for the Razer Blade 14 (2022): performance profiles, fan curves, per-key RGB and charge limit on Linux and Windows"
 readme = "README.md"
 requires-python = ">=3.11"
