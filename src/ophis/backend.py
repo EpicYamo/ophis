@@ -19,7 +19,12 @@ class Backend(Protocol):
     connected: bool
     detail: str
 
-    def set_power_mode(self, mode: int) -> None: ...
+    def set_power_mode(
+        self,
+        mode: int,
+        cpu_boost: int | None = None,
+        gpu_boost: int | None = None,
+    ) -> None: ...
     def set_fan_rpm(self, rpm: int) -> None: ...
     def set_brightness(self, value: int) -> None: ...
     def set_effect(
@@ -46,8 +51,17 @@ class MockBackend:
         self.state = DeviceState()
         self.detail = "Preview mode - nothing is written to the device"
 
-    def set_power_mode(self, mode: int) -> None:
+    def set_power_mode(
+        self,
+        mode: int,
+        cpu_boost: int | None = None,
+        gpu_boost: int | None = None,
+    ) -> None:
         self.state.power_mode = mode
+        if cpu_boost is not None:
+            self.state.cpu_boost = int(cpu_boost)
+        if gpu_boost is not None:
+            self.state.gpu_boost = int(gpu_boost)
 
     def set_fan_rpm(self, rpm: int) -> None:
         self.state.fan_rpm = rpm
@@ -161,8 +175,18 @@ class DeviceBackend:
             except p.RazerError:
                 pass
 
-    def set_power_mode(self, mode: int) -> None:
-        self._device().set_power_mode(mode, self.state.cpu_boost, self.state.gpu_boost)
+    def set_power_mode(
+        self,
+        mode: int,
+        cpu_boost: int | None = None,
+        gpu_boost: int | None = None,
+    ) -> None:
+        cpu = self.state.cpu_boost if cpu_boost is None else int(cpu_boost)
+        gpu = self.state.gpu_boost if gpu_boost is None else int(gpu_boost)
+        self._device().set_power_mode(mode, cpu, gpu)
+        self.state.power_mode = mode
+        self.state.cpu_boost = cpu
+        self.state.gpu_boost = gpu
 
     def set_fan_rpm(self, rpm: int) -> None:
         self._device().set_fan_rpm(rpm)

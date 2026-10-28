@@ -237,8 +237,9 @@ def _probe() -> int:
         )
     razer = detect_synapse()
     print(f"razer processes: {', '.join(razer) if razer else 'none'}")
+    connected = backend.connected
     backend.close()
-    return 0 if backend.connected else 1
+    return 0 if connected else 1
 
 
 def _restore() -> int:

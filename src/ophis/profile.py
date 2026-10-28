@@ -127,9 +127,11 @@ def apply(backend, profile: dict[str, Any]) -> list[str]:
     mode_name = str(power.get("mode", "balanced"))
     mode = POWER_NAMES.get(mode_name, p.PowerMode.BALANCED)
     manual_fan = fan.get("mode") == "manual" and mode == p.PowerMode.CUSTOM
+    cpu_boost = power.get("cpu_boost")
+    gpu_boost = power.get("gpu_boost")
 
     try:
-        backend.set_power_mode(mode)
+        backend.set_power_mode(mode, cpu_boost, gpu_boost)
     except (p.RazerError, OSError) as exc:
         warnings.append(f"power mode: {exc}")
 

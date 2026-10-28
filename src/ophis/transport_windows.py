@@ -1,10 +1,12 @@
-"""Windows transport: HID feature reports on an exclusive handle.
+"""Windows transport: HID feature reports on the control collection.
 
-Razer Synapse opens the same vendor collection. To avoid two writers fighting
-over the embedded controller, this transport opens the interface with share
-mode 0 and never falls back to a shared handle. If another process owns the
-device the open fails, and the UI explains why instead of corrupting the
-controller state.
+On this laptop the 91-byte control report lives in a collection whose
+top-level usage is Generic Desktop / Mouse. Windows opens that collection
+exclusively for system use, so ``CreateFile`` rejects both ``share mode 0``
+and ``GENERIC_READ`` with access denied. Opening it with ``GENERIC_WRITE``
+and a shared handle still succeeds, and ``HidD_SetFeature`` /
+``HidD_GetFeature`` work through that handle, which is all this transport
+needs.
 
 Windows exposes the 91-byte packet as a feature report with report ID 0, the
 same layout the Linux hidraw transport uses.
@@ -244,7 +246,7 @@ def _hid_interface_paths(setupapi, kernel32) -> list[str]:
 
 
 class WindowsHidTransport:
-    """Exclusive HID transport for the Razer vendor collection."""
+    """Feature-report transport for the Razer control collection."""
 
     def __init__(self, path: str | None = None, settle: float = 0.001, gap: float = 0.008):
         self.path = path
@@ -338,13 +340,13 @@ class WindowsHidTransport:
         # vendor-defined collection nested inside, so UsagePage alone is not
         # enough to identify it.
         selected = [
-            path for path, caps in probes if caps.UsagePage == VENDOR_USAGE_PAGE
+            path
+            for path, caps in probes
+            if caps.FeatureReportByteLength == PACKET_LEN
         ]
         if not selected:
             selected = [
-                path
-                for path, caps in probes
-                if caps.FeatureReportByteLength == PACKET_LEN
+                path for path, caps in probes if caps.UsagePage == VENDOR_USAGE_PAGE
             ]
         if not selected:
             detail = ", ".join(
@@ -357,27 +359,12 @@ class WindowsHidTransport:
             )
         return selected[0]
 
-    def _create_shared(self, path: str):
+    def _create_shared(self, path: str, access: int = 0):
         assert self._kernel32 is not None
         handle = self._kernel32.CreateFileW(
             path,
-            GENERIC_READ | GENERIC_WRITE,
+            access,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
-            None,
-            OPEN_EXISTING,
-            0,
-            None,
-        )
-        if handle is None or handle == ctypes.c_void_p(-1).value:
-            return None
-        return handle
-
-    def _create_exclusive(self, path: str):
-        assert self._kernel32 is not None
-        handle = self._kernel32.CreateFileW(
-            path,
-            GENERIC_READ | GENERIC_WRITE,
-            0,  # exclusive: no other process may open this collection
             None,
             OPEN_EXISTING,
             0,
@@ -389,7 +376,7 @@ class WindowsHidTransport:
 
     def _open_path(self, path: str) -> None:
         assert self._hid is not None and self._kernel32 is not None
-        handle = self._create_exclusive(path)
+        handle = self._create_shared(path, GENERIC_WRITE)
         if handle is None:
             self.last_open_error = _error_text()
             raise RazerError(self.last_open_error)

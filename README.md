@@ -17,9 +17,10 @@ confirmed, including the three protocol mistakes described further down.
 
 Synapse does not run on Linux. On Windows it works, but only as a background
 stack of services that keeps the controller busy and has no reason to run while
-you are gaming. Ophis talks to the same vendor HID collection directly, needs no
-service, and on Windows opens that collection **exclusively** so Razer software
-cannot apply its own lighting over yours.
+you are gaming. Ophis talks to the same vendor HID collection directly and needs
+no service. On Windows the 91-byte control report sits in a mouse collection
+that Windows owns exclusively, so Ophis shares that handle and uses feature
+reports only; keep Razer's own lighting path closed.
 
 The community projects that cover this hardware are either archived, cover only
 part of it, or need an out-of-tree kernel module that fights Secure Boot:
@@ -121,11 +122,11 @@ Download **`Ophis-windows.zip`** from the
 anywhere and run **`Ophis.exe`**.
 
 Before the first run, quit **Razer Synapse** (and remove it from startup if you
-do not need it for firmware updates). Ophis opens the controller exclusively;
-if another program already holds it, the window explains that instead of
-silently competing with it. `Ophis-cli.exe --probe` prints the lock state,
-every Razer HID interface (usage page, feature-report size, whether it is the
-control interface) and any Razer processes that are still running.
+do not need it for firmware updates). Windows already owns the mouse collection
+that carries the control report, so Ophis cannot lock it; keep Synapse's own
+lighting path closed instead. `Ophis-cli.exe --probe` prints the HID usage page
+and feature-report size of every Razer interface, whether it is the control
+interface, and any Razer processes that are still running.
 
 Ophis needs **no administrator rights** and installs **no driver**. It is a
 normal user-mode HID application. The executable is unsigned, so Windows
@@ -192,24 +193,22 @@ value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, so it does not
 need administrator rights. `Ophis.exe --tray` starts hidden;
 `Ophis.exe --show` starts with the window visible.
 
-## Exclusive device access
+## Single writer
 
 The controller has one vendor HID collection, and two writers are one writer too
 many. Ophis therefore:
 
-- opens the collection with **share mode 0** on Windows, so no other process can
-  open it while Ophis is running;
-- never falls back to a shared handle. If the open fails, the UI says which
-  program is in the way and offers **Retry**;
+- opens the control collection with a **shared, write-only handle** on Windows.
+  Windows opens that mouse top-level collection for system use, so share mode 0
+  and `GENERIC_READ` are rejected; `HidD_SetFeature` / `HidD_GetFeature` still
+  work through the shared handle;
 - serialises every command through one transport. There is no parallel writer
   in the app, and the animation engine stops if the controller falls behind;
 - holds a single-instance named pipe before it touches the device, so launching
   Ophis twice cannot create two writers.
 
-This is the same model that worked for the BetterRGB project: the other
-application may stay open for features that use a different channel, but its
-RGB path cannot write the controller while Ophis owns it. In practice, keep
-Synapse closed; Ophis does not need it.
+The OS-level lock is not available on this laptop, so keep Synapse closed while
+Ophis is running; Ophis does not need it.
 
 ## The tray application
 
@@ -274,7 +273,7 @@ Windows: Qt window  ──┘                    └─ WindowsHidTransport ─�
 - `transport.py` — the interface plus a fake transport for tests and previews.
 - `transport_linux.py` — `HIDIOCSFEATURE` / `HIDIOCGFEATURE`.
 - `transport_windows.py` — `SetupAPI` + `HidD_SetFeature` / `HidD_GetFeature`
-  on an exclusive handle.
+  on the shared mouse collection's feature-report handle.
 - `device.py` — semantic operations: profiles, fan, frames, logo, charge limit.
 - `profile.py` — saved state, no daemon; platform-specific config path.
 - `thermal.py` / `sysinfo.py` — Linux sensors and battery.
@@ -323,9 +322,10 @@ operating system changes, which is why quitting Ophis does not reset it.
   (the last keys are Del and the power button, which does have an LED).
 - The fan curve runs only while the app is open. The controller keeps the last
   speed afterwards.
-- On Windows, host animations pause when the Lighting page is not visible; the
-  controller keeps the last frame. This avoids a 24 fps writer running in the
-  background while you game. Device effects run inside the keyboard either way.
+- On Windows, host animations keep running while the app is open, even after
+  you switch to another tab or hide the window to the tray. A tray-only start
+  leaves the controller alone until the window is first shown. Device effects
+  run inside the keyboard either way.
 - Hardware-wave direction (`01`/`02`) is not mapped to physical left/right.
 - Logo breathing is sent, but the firmware calls it unsupported.
 - Only `1532:028C` is a target. Other Blade models advertise different feature

@@ -2,8 +2,8 @@
 
 The protocol is identical on every platform; only the way a 91-byte feature
 report reaches the device changes. Linux uses hidraw, Windows uses the HID
-class API with an exclusive handle. `default_transport()` picks the right one
-without importing platform-specific modules on the other OS.
+class API on the shared control collection. `default_transport()` picks the
+right one without importing platform-specific modules on the other OS.
 """
 
 from __future__ import annotations

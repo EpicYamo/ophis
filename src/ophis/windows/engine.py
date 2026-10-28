@@ -98,12 +98,15 @@ class QtAnimationEngine(QObject):
         dt = min(0.2, now - self._last_tick)
         self._last_tick = now
         matrix = self.effect.render(dt)
-        if not self._write(matrix):
+        started = time.monotonic()
+        written = self._write(matrix)
+        write_ms = (time.monotonic() - started) * 1000
+        if not written:
             self._timer.stop()
             self._fallback()
             return
         self.frameReady.emit(matrix)
-        self._slow = self._slow + 1 if dt * 1000 > SLOW_FRAME_MS else 0
+        self._slow = self._slow + 1 if write_ms > SLOW_FRAME_MS else 0
         if self._slow >= 10:
             self.last_error = "animation stopped: the controller is not keeping up"
             self._timer.stop()

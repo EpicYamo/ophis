@@ -33,6 +33,17 @@ class ProfileTests(unittest.TestCase):
             path.write_text("{not json", encoding="utf-8")
             self.assertEqual(profile.load(path)["power"]["mode"], "balanced")
 
+    def test_apply_uses_saved_boost_levels(self):
+        backend = MockBackend()
+        data = json.loads(json.dumps(profile.DEFAULT))
+        data["power"].update({"mode": "custom", "cpu_boost": 3, "gpu_boost": 2})
+
+        profile.apply(backend, data)
+
+        self.assertEqual(int(backend.state.power_mode), int(profile.POWER_NAMES["custom"]))
+        self.assertEqual(backend.state.cpu_boost, 3)
+        self.assertEqual(backend.state.gpu_boost, 2)
+
     def test_apply_pushes_every_section(self):
         backend = MockBackend()
 

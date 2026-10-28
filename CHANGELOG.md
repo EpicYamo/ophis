@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Windows: open the control collection with a shared, write-only handle.
+  Windows owns the mouse top-level collection that carries the 91-byte report,
+  so `share mode 0` and `GENERIC_READ` fail with access denied; every
+  `CreateFile` on the real control interface used to fail and the app reported
+  "no interface exposes the 91-byte feature report".
+- Windows: `Ophis-cli.exe --probe` exits 0 when the controller is connected.
+  It used to check `connected` after closing the handle, so it always returned
+  1.
+- Power: the Custom profile's CPU/GPU boost combo boxes no longer raise
+  `set_power_mode() takes 2 positional arguments but 4 were given`; the backend
+  and both GUIs now accept boost levels, and applying a saved profile restores
+  its stored boost values.
+- Windows: host lighting animations keep running when the Lighting tab is not
+  visible or the window is hidden to the tray. They resume after a reconnect
+  and on the first window show; a tray-only start still leaves the controller
+  alone until then.
+
 ## [0.3.1] - 2026-10-28
 
 ### Fixed

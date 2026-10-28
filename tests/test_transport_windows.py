@@ -7,6 +7,10 @@ import unittest
 
 from ophis import protocol as p
 from ophis.transport_windows import (
+    FILE_SHARE_READ,
+    FILE_SHARE_WRITE,
+    GENERIC_READ,
+    GENERIC_WRITE,
     HIDP_CAPS,
     WindowsHidTransport,
     _is_control_collection,
@@ -43,6 +47,18 @@ class FakeKernel:
         return 1
 
 
+class RecordingKernel:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, int, int]] = []
+
+    def CreateFileW(self, path, access, share, *_args):
+        self.calls.append((path, access, share))
+        return 1
+
+    def CloseHandle(self, _handle):
+        return 1
+
+
 class WindowsTransportTests(unittest.TestCase):
     def test_path_filter(self) -> None:
         self.assertTrue(
@@ -67,6 +83,22 @@ class WindowsTransportTests(unittest.TestCase):
         self.assertTrue(_is_control_collection(caps))
 
         self.assertFalse(_is_control_collection(None))
+
+    def test_control_handle_is_shared_and_never_reads(self) -> None:
+        # The control collection is a mouse top-level collection. Windows
+        # rejects GENERIC_READ and share mode 0 on it, so the handle must be
+        # write-only and shared; HidD_* still work through it.
+        transport = WindowsHidTransport()
+        transport._kernel32 = RecordingKernel()
+        handle = transport._create_shared(
+            r"\\?\hid#vid_1532&pid_028c&mi_02", GENERIC_WRITE
+        )
+        self.assertEqual(handle, 1)
+        path, access, share = transport._kernel32.calls[0]
+        self.assertIn("vid_1532", path)
+        self.assertEqual(access & GENERIC_READ, 0)
+        self.assertNotEqual(access & GENERIC_WRITE, 0)
+        self.assertEqual(share, FILE_SHARE_READ | FILE_SHARE_WRITE)
 
     def test_transact_roundtrip(self) -> None:
         transport = WindowsHidTransport(settle=0.0, gap=0.0)

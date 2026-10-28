@@ -225,6 +225,8 @@ class MainWindow(QMainWindow):
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
+        if self.lighting is not None:
+            self.lighting.resume_animation()
         if self._dark_title:
             return
         self._dark_title = True
@@ -647,9 +649,9 @@ class MainWindow(QMainWindow):
         device_card.add_row(self.synapse_detail)
         device_card.add_row(
             label(
-                "Ophis opens the vendor HID collection exclusively. That keeps "
-                "Razer Synapse and other tools from writing the same controller "
-                "state while Ophis is running.",
+                "Ophis sends 91-byte feature reports to the controller's shared "
+                "mouse collection. Keep Razer Synapse closed so both programs do "
+                "not write the same controller state.",
                 muted=True,
                 wrap=True,
             )
@@ -727,8 +729,7 @@ class MainWindow(QMainWindow):
         detail = getattr(self.backend, "detail", "") or "not connected"
         if not connected:
             self.banner_text.setText(
-                f"{detail} If Razer Synapse is open, quit it and press Retry. "
-                "Ophis needs the controller to itself."
+                f"{detail} If Razer Synapse is open, quit it and press Retry."
             )
         self.device_detail.set_subtitle(detail)
         if self._synapse:
@@ -741,7 +742,7 @@ class MainWindow(QMainWindow):
                 self.sidebar_status.setText("Preview mode")
             else:
                 self.sidebar_status.setText(
-                    "Controller locked by Ophis" if connected else "Controller not connected"
+                    "Controller connected" if connected else "Controller not connected"
                 )
 
     def _retry_device(self) -> None:

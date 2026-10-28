@@ -19,7 +19,7 @@ code-signed. Choose **More info → Run anyway**.
 `Ophis.exe` opens the window and adds a tray icon. Closing the window hides it;
 right-click the icon to open it again, restore defaults or quit.
 
-## Check the device lock
+## Check the interface
 
 Run `Ophis-cli.exe --probe` in PowerShell:
 
@@ -30,27 +30,32 @@ Run `Ophis-cli.exe --probe` in PowerShell:
 It prints:
 
 - whether the controller could be opened,
-- the exclusive lock status and the HID usage page,
+- the HID usage page and feature-report size of the control interface,
 - every Razer HID interface with its usage page, feature-report size and
   whether it is the 91-byte control interface,
 - the current brightness, fan target, power mode and charge limit,
 - any Razer/Synapse processes that are still running.
 
-If it says the interface is in use, close Razer Synapse (or stop its services)
-and run the probe again.
+Windows opens the mouse collection that carries the control report for system
+use, so no user program can take an exclusive lock on it. If Synapse is running,
+close it and run the probe again.
 
 ## Why Synapse and Ophis should not write at the same time
 
-The controller has one vendor HID collection. Ophis opens it with **share mode
-0** and never falls back to a shared handle. That means:
+The controller has one vendor HID collection, nested under a mouse top-level
+collection. Windows rejects share mode 0 and `GENERIC_READ` on that collection,
+so Ophis opens it with a **shared, write-only handle** and talks to it with HID
+feature reports. That means:
 
-- if Ophis starts first, Razer's RGB path cannot open the collection;
-- if Synapse starts first, Ophis refuses to write and shows a clear error;
-- the app never creates two writers, even if `Ophis.exe` is launched twice
-  (a named pipe forwards the second launch to the first instance).
+- Ophis cannot lock out Razer's RGB path at the OS level;
+- every command is still serialised through one transport, and the app never
+  creates two writers even if `Ophis.exe` is launched twice (a named pipe
+  forwards the second launch to the first instance);
+- keep Synapse closed while Ophis runs, so both do not address the EC at the
+  same time.
 
 Razer's power/fan path may use a different channel and can keep working; Ophis
-does not depend on it. For a clean setup, keep Synapse closed.
+does not depend on it.
 
 ## Build from source
 

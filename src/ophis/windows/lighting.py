@@ -428,8 +428,8 @@ class LightingPage(QWidget):
             return
 
         if not self.isVisible():
-            # Do not animate in the background: a tray-only start should leave
-            # the controller alone until the user opens this page.
+            # A tray-only start should leave the controller alone until the
+            # window is first shown; MainWindow.showEvent resumes it later.
             self.engine.stop()
             self._frame = animations.create(name, params).render(0.016)
             self.keyboard.set_matrix(self._frame)
@@ -441,12 +441,21 @@ class LightingPage(QWidget):
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
-        if self._mode != "custom":
-            return
-        if self._paint_mode:
+        self.keyboard.set_matrix(self._frame)
+        if self._mode == "custom" and self._paint_mode:
             self._write_frame()
             return
-        if getattr(self, "params", None) is None:
+        self.resume_animation()
+
+    def resume_animation(self) -> None:
+        """Start the selected custom effect if it is not already running.
+
+        The animation is meant to keep going while the user is on another tab
+        or the window is in the tray, so this is a no-op when it is running.
+        """
+        if self._mode != "custom" or self.engine.running:
+            return
+        if self._paint_mode or getattr(self, "params", None) is None:
             return
         if not getattr(self.backend, "connected", False):
             return
@@ -454,18 +463,9 @@ class LightingPage(QWidget):
         if self.engine.last_error:
             self.window.toast(self.engine.last_error)
 
-    def hideEvent(self, event) -> None:
-        self.engine.stop()
-        super().hideEvent(event)
-
     def refresh_connection(self) -> None:
         """Restart a stopped animation after a reconnect."""
-        if self._mode != "custom" or not self.isVisible():
-            return
-        if getattr(self.backend, "connected", False) and not self._paint_mode:
-            self.engine.start(self._current, self.params)
-            if self.engine.last_error:
-                self.window.toast(self.engine.last_error)
+        self.resume_animation()
 
     # -- host settings ------------------------------------------------------
     def _clear_card(self, card: SettingsCard) -> None:
