@@ -4,10 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.2] - 2026-10-30
 
 ### Fixed
 
+- Linux: the `.deb` wrappers passed `--tray --show` as one quoted argument, so
+  launching Ophis from the application menu failed with
+  `Unknown option --tray --show`. The wrappers now pass each flag separately
+  and preserve the user's arguments.
 - Windows: open the control collection with a shared, write-only handle.
   Windows owns the mouse top-level collection that carries the 91-byte report,
   so `share mode 0` and `GENERIC_READ` fail with access denied; every

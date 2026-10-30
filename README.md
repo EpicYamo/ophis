@@ -79,7 +79,7 @@ Download `ophis_<version>_all.deb` from the
 [releases page](https://github.com/EpicYamo/ophis/releases) and install it:
 
 ```bash
-sudo apt install ./ophis_0.3.1_all.deb
+sudo apt install ./ophis_0.3.2_all.deb
 ```
 
 It installs `ophis`, `ophis-gui` and `ophis-tray`, the desktop entry, the icon
@@ -100,7 +100,7 @@ sudo udevadm trigger --action=change --subsystem-match=hidraw
 # Optional: a proper tray icon on GNOME
 sudo apt install gir1.2-ayatanaappindicator3-0.1
 
-make test        # 51 unit tests, no hardware needed
+make test        # 56 unit tests, no hardware needed
 make run         # GTK4 GUI
 make tray        # GUI in the background with a tray icon
 make preview     # GUI with a fake device
@@ -340,7 +340,7 @@ operating system changes, which is why quitting Ophis does not reset it.
 ## Development
 
 ```bash
-make test     # 51 unit tests, no device required
+make test     # 56 unit tests, no device required
 make preview  # Linux GUI against a fake device
 ```
 

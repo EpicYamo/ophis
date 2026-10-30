@@ -37,17 +37,17 @@ find "$ROOT/usr/lib/ophis" -name '__pycache__' -type d -prune -exec rm -rf {} +
 write_wrapper() {
   local path="$1"
   local module="$2"
-  shift 2
+  local flags="$3"
   cat > "$path" <<EOF
 #!/bin/sh
-exec /usr/bin/env PYTHONPATH=/usr/lib/ophis /usr/bin/python3 -m ${module} "$@"
+exec /usr/bin/env PYTHONPATH=/usr/lib/ophis /usr/bin/python3 -m ${module} ${flags} "\$@"
 EOF
   chmod 0755 "$path"
 }
 
-write_wrapper "$ROOT/usr/bin/ophis" "ophis.cli" '"$@"'
-write_wrapper "$ROOT/usr/bin/ophis-gui" "ophis.gui.app" '--tray --show "$@"'
-write_wrapper "$ROOT/usr/bin/ophis-tray" "ophis.tray" '"$@"'
+write_wrapper "$ROOT/usr/bin/ophis" "ophis.cli" ""
+write_wrapper "$ROOT/usr/bin/ophis-gui" "ophis.gui.app" "--tray --show"
+write_wrapper "$ROOT/usr/bin/ophis-tray" "ophis.tray" ""
 
 sed 's|^Exec=.*|Exec=ophis-gui|; s|^Icon=.*|Icon=io.github.epicyamo.Ophis|' \
   linux/data/ophis.desktop > "$ROOT/usr/share/applications/io.github.epicyamo.Ophis.desktop"

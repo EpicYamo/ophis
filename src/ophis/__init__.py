@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 
 def build_id() -> str:
