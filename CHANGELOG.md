@@ -13,6 +13,9 @@ All notable changes to this project are documented here. The format follows
   the animation engine's device reference, and restore the selected effect;
   reapply Ophis's saved power/fan settings when the active Linux power profile
   changes.
+- Linux/Windows: persist a host animation as soon as it is selected, even if
+  none of that animation's controls are changed, so it remains selected after
+  restarting Ophis.
 - Fan: read the actual CPU/GPU fan tachometers with `0x0D/0x88`, separately
   from the setpoint register. Verified on the Blade 14 (2022): the controller
   reported 2300/2700 RPM while `0x0D/0x81` reported 2000 RPM setpoints.

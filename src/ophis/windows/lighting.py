@@ -383,6 +383,9 @@ class LightingPage(QWidget):
         if self._syncing or index < 0 or index >= len(HOST_EFFECTS):
             return
         self._select_effect(HOST_EFFECTS[index][0])
+        # Selecting an effect is itself a profile change, even when its
+        # controls stay untouched. Save it now so it survives the next launch.
+        self._remember(self._current, self.params)
 
     def _select_effect(self, name: str) -> None:
         self._flush_custom()

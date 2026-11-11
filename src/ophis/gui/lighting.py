@@ -480,6 +480,10 @@ class LightingPage(Gtk.Box):
         if row is None or self._syncing:
             return
         self._select_effect(row.get_name())
+        # Persist the choice immediately; otherwise selecting an effect without
+        # touching one of its controls leaves the previous effect selected on
+        # the next launch.
+        self._remember(self._current, self.params)
 
     def _select_effect(self, name: str) -> None:
         self._flush_custom()
