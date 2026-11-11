@@ -91,6 +91,7 @@ class MainWindow(QMainWindow):
         self._sensor_thread: QThread | None = None
         self._sensors: SensorWorker | None = None
         self._dark_title = False
+        self._has_been_shown = False
 
         self.setWindowTitle("Ophis")
         self.setWindowIcon(app_icon())
@@ -132,11 +133,17 @@ class MainWindow(QMainWindow):
         self._refresh_device_status()
         self._refresh_battery()
         self._refresh_temperatures(self._temperatures)
+        self._refresh_fan_rpm()
 
         self.curve_timer = QTimer(self)
         self.curve_timer.setInterval(3000)
         self.curve_timer.timeout.connect(self._curve_tick)
         self.curve_timer.start()
+
+        self.fan_rpm_timer = QTimer(self)
+        self.fan_rpm_timer.setInterval(2000)
+        self.fan_rpm_timer.timeout.connect(self._refresh_fan_rpm)
+        self.fan_rpm_timer.start()
 
         self._start_sensors()
 
@@ -225,6 +232,7 @@ class MainWindow(QMainWindow):
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
+        self._has_been_shown = True
         if self.lighting is not None:
             self.lighting.resume_animation()
         if self._dark_title:
@@ -283,14 +291,18 @@ class MainWindow(QMainWindow):
 
         boost_card = SettingsCard()
         boost_card.body.addWidget(section_label("Boost"))
-        cpu_row = SettingRow("CPU boost", "Only used by the Custom profile")
+        cpu_row = SettingRow(
+            "CPU boost", "EC level: Low 0, Normal 1, High 2, Boost 3; not a watt limit"
+        )
         self.cpu_boost = QComboBox()
         self.cpu_boost.addItems(BOOST_LEVELS)
         self.cpu_boost.currentIndexChanged.connect(self._on_boost)
         cpu_row.add_control(self.cpu_boost)
         boost_card.add_row(cpu_row)
 
-        gpu_row = SettingRow("GPU boost", "Only used by the Custom profile")
+        gpu_row = SettingRow(
+            "GPU boost", "EC level: Low 0, Normal 1, High 2; not a watt limit"
+        )
         self.gpu_boost = QComboBox()
         self.gpu_boost.addItems(BOOST_LEVELS[:-1])
         self.gpu_boost.currentIndexChanged.connect(self._on_boost)
@@ -345,7 +357,7 @@ class MainWindow(QMainWindow):
     def _build_cooling(self) -> QWidget:
         page = PageScroll(
             "Cooling",
-            "Temperatures are read without a driver; the fan is written to the controller",
+            "Windows CPU readings use ACPI and may differ from Synapse; fan RPM is a target, not a measured speed",
         )
         temps = SettingsCard()
         temps.body.addWidget(section_label("Temperatures"))
@@ -394,6 +406,8 @@ class MainWindow(QMainWindow):
 
         self.fan_status_row = SettingRow("Status", "automatic")
         fan.add_row(self.fan_status_row)
+        self.fan_actual_row = SettingRow("Measured fan speed", "reading...")
+        fan.add_row(self.fan_actual_row)
         page.body.addWidget(fan)
 
         curve_card = Card()
@@ -782,6 +796,18 @@ class MainWindow(QMainWindow):
                 value_label.setText(f"{value:.1f} °C")
                 bar.setValue(value)
 
+    def _refresh_fan_rpm(self) -> None:
+        refresh = getattr(self.backend, "refresh_fan_rpm", None)
+        readings = refresh() if callable(refresh) else None
+        if readings is None:
+            readings = getattr(self.state, "fan_actual_rpm", None)
+        if readings is None:
+            self.fan_actual_row.set_subtitle("not available")
+        else:
+            self.fan_actual_row.set_subtitle(
+                f"Zone 1: {readings[0]} RPM · Zone 2: {readings[1]} RPM"
+            )
+
     def _refresh_battery(self, data: dict | None = None) -> None:
         if data is not None:
             self._battery = data
@@ -858,6 +884,8 @@ class MainWindow(QMainWindow):
             self.engine.stop()
         if self.curve_timer.isActive():
             self.curve_timer.stop()
+        if self.fan_rpm_timer.isActive():
+            self.fan_rpm_timer.stop()
         if self._sensor_thread is not None:
             if self._sensors is not None:
                 try:

@@ -6,7 +6,7 @@ import getpass
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QAction, QGuiApplication
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 from .. import __version__, build_id, profile
 from ..backend import DeviceBackend, MockBackend
 from .icons import app_icon
+from .power_events import WindowsPowerEventFilter
 from .sensors import detect_synapse
 from .window import MainWindow
 
@@ -68,6 +69,21 @@ class OphisApp:
                 pass
 
         self.window = MainWindow(self, self.backend, tray_enabled=False)
+        self._power_event_filter: WindowsPowerEventFilter | None = None
+        self._power_reapply_profile = False
+        self._power_retries = 0
+        self._power_recovery_timer = QTimer(self.application)
+        self._power_recovery_timer.setSingleShot(True)
+        self._power_recovery_timer.setInterval(1200)
+        self._power_recovery_timer.timeout.connect(self._recover_after_power_change)
+        if sys.platform == "win32":
+            self._power_event_filter = WindowsPowerEventFilter(
+                int(self.window.winId()),
+                self._on_system_suspend,
+                self._on_system_resume,
+                self._on_power_profile_change,
+            )
+            self.application.installNativeEventFilter(self._power_event_filter)
         self.tray: QSystemTrayIcon | None = None
         self._server: QLocalServer | None = None
         self._configure_tray()
@@ -130,6 +146,62 @@ class OphisApp:
         self.window.raise_()
         self.window.activateWindow()
 
+    # -- Windows power/display recovery -----------------------------------
+    def _on_system_suspend(self) -> None:
+        if self.window.lighting is not None:
+            self.window.lighting.pause_for_power_change()
+
+    def _on_system_resume(self) -> None:
+        self._schedule_power_recovery(reapply_profile=False)
+
+    def _on_power_profile_change(self) -> None:
+        self._schedule_power_recovery(reapply_profile=True)
+
+    def _schedule_power_recovery(self, *, reapply_profile: bool) -> None:
+        if self.quitting or not getattr(self.window, "_has_been_shown", False):
+            return
+        self._power_reapply_profile |= reapply_profile
+        self._power_recovery_timer.start()
+
+    def _recover_after_power_change(self) -> None:
+        if self.quitting:
+            return
+
+        reconnect = getattr(self.backend, "reconnect", None)
+        if callable(reconnect) and not self.preview:
+            try:
+                reconnect()
+            except Exception:
+                pass
+
+        if not getattr(self.backend, "connected", False):
+            self._power_retries += 1
+            if self._power_retries <= 5:
+                self._power_recovery_timer.start(2000)
+            else:
+                self._power_retries = 0
+                self.window._refresh_device_status()
+                self.window.toast("Controller did not reconnect after the power change")
+            return
+
+        self._power_retries = 0
+        if self._power_reapply_profile:
+            try:
+                warnings = profile.apply(self.backend, self.window.profile)
+                if warnings:
+                    self.window.toast(warnings[0])
+            except Exception as exc:
+                self.window.toast(f"could not restore the saved profile: {exc}")
+        self._power_reapply_profile = False
+        try:
+            self.backend.refresh()
+        except Exception:
+            pass
+        self.window._sync_from_state()
+        self.window._refresh_device_status()
+        if self.window.lighting is not None:
+            self.window.lighting.restore_after_power_change()
+
     # -- actions ------------------------------------------------------------
     def restore_defaults(self) -> None:
         if self.window.lighting is not None:
@@ -163,6 +235,11 @@ class OphisApp:
         try:
             self.window.shutdown()
         finally:
+            self._power_recovery_timer.stop()
+            if self._power_event_filter is not None:
+                self.application.removeNativeEventFilter(self._power_event_filter)
+                self._power_event_filter.close()
+                self._power_event_filter = None
             if self.tray is not None:
                 self.tray.hide()
             self.application.quit()

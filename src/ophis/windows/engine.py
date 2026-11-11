@@ -86,6 +86,13 @@ class QtAnimationEngine(QObject):
             return
         matrix = self.effect.render(0.0)
         if self._write(matrix):
+            if self.device is not None:
+                try:
+                    self.device.activate_custom_frame()
+                except (OSError, p.RazerError) as exc:
+                    self.last_error = str(exc)
+                    self._fallback()
+                    return
             self.frameReady.emit(matrix)
         else:
             self._fallback()

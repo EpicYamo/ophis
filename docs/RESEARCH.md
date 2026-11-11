@@ -98,6 +98,7 @@ the device reported success **and** the new value came back.
 | charge limit | `D0` (enabled, 80%) | read back `D0`, unchanged |
 | fan, balanced/gaming | mode `0`, `manual_fan=1`, setpoint `35`–`50` | setpoint stored and readable via `0x81`, `manual_fan` reports `1`, **fans do not move** |
 | fan, custom | mode `4`, `manual_fan=1`, setpoint `50` to both zones | fans audibly spin up; `0x81` reads back `50` |
+| actual fan speed | `0x0D/0x88`, args `[00, zone, 00]` | on RZ09-0427, 20 consecutive reads returned 2300/2700 RPM; `0x81` simultaneously reported 2000 RPM setpoints |
 | fan, back to automatic | mode `4`, `manual_fan=0` | fans return to the firmware curve |
 | lighting | static, breathing (single), wave, reactive, starlight, spectrum, each with the parameters from OpenRazer's layouts | every effect visibly ran; there is no query for the current effect |
 | per-key frames | six `03/0B` rows plus `03/0A 05 00`, repeated at 24 fps | six horizontal colour bands appeared, then ran as an animation |
@@ -150,7 +151,6 @@ colour: a slow EC is a warning, not something to push through.
 
 | Question | Approach |
 | --- | --- |
-| Actual fan RPM | The EC likely exposes a tachometer read. Not in the command table we know. Candidates: an unused `0x0D` sub-command, or a separate class. Needs a probe sweep + comparison with `sensors`. |
 | MUX / Optimus state | Probably an ACPI/WMI call rather than HID. Check `acpi_listen`, DSDT, and the Windows `OphisService` behaviour. |
 | Refresh-rate switching | Synapse may push it over the same HID channel; Mutter DBus is the safer Linux-side implementation anyway. |
 | GPU TGP limits | Likely `nvidia-smi -pl`, not the EC. |

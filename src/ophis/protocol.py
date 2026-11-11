@@ -56,6 +56,7 @@ class Cmd(IntEnum):
     # 0x0D - Power and fan
     FAN_SET_RPM = 0x01
     FAN_GET_RPM = 0x81
+    FAN_GET_ACTUAL_RPM = 0x88
     POWER_SET_MODE = 0x02
     BOOST_SET = 0x07
     POWER_GET_MODE = 0x82

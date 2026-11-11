@@ -82,7 +82,8 @@ zones so the two halves of the cooling system agree.
 | Set fan RPM | `0x01` | 3 | `00`, `zone`, `rpm/100` | status only |
 | Set boost | `0x07` | 3 | `00`, `which`, `level` | status only |
 | Get power mode | `0x82` | 4 | `00`, `zone`, `00`, `00` | `args[2]` = mode, `args[3]` = manual fan |
-| Get fan target | `0x81` | 3 | `00`, `zone`, `00` | `args[2]` = RPM / 100 |
+| Get fan setpoint | `0x81` | 3 | `00`, `zone`, `00` | `args[2]` = setpoint RPM / 100 |
+| Get actual fan RPM | `0x88` | 3 | `00`, `zone`, `00` | `args[2]` = tachometer RPM / 100 |
 | Get boost | `0x87` | 3 | `00`, `which`, `00` | `args[2]` = level |
 
 - `mode`: `0` balanced, `1` gaming, `2` creator, `4` custom. Value `3` is
@@ -234,8 +235,6 @@ returns all 91 bytes, so no `read()` loop is needed.
 These are not needed for the features above, but are the interesting next steps
 (see [ROADMAP.md](../ROADMAP.md)):
 
-- reading the **actual** fan RPM: `0x0D/0x81` returns the setpoint, and no
-  tachometer command is known for this model
 - MUX switch / Optimus state
 - display refresh-rate switching on models that Synapse handles
 - GPU TGP limits

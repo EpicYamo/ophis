@@ -1,7 +1,7 @@
 """Temperature sensors from /sys/class/hwmon.
 
-There is no fan tachometer on this laptop, but the CPU, GPU and NVMe sensors
-are all exposed by the kernel, which is enough for a fan curve.
+CPU, GPU and NVMe sensors are exposed by the kernel, which is enough for a fan
+curve. Fan tachometers are read separately through the Razer HID controller.
 """
 
 from __future__ import annotations

@@ -107,6 +107,7 @@ class ControlWindow(Adw.ApplicationWindow):
         GLib.timeout_add_seconds(2, self._refresh_temperatures)
         GLib.timeout_add_seconds(10, self._refresh_battery)
         GLib.timeout_add_seconds(3, self._curve_tick)
+        self._refresh_fan_rpm()
 
     # -- shell --------------------------------------------------------------
     def _build_sidebar(self) -> Gtk.Widget:
@@ -274,7 +275,10 @@ class ControlWindow(Adw.ApplicationWindow):
 
         boost_group = Adw.PreferencesGroup(
             title="Boost",
-            description="Only used by the Custom profile",
+            description=(
+                "Custom profile EC levels: Low, Normal, High, Boost (CPU only); "
+                "these are not wattage limits"
+            ),
         )
         self.cpu_boost_row = Adw.ComboRow(title="CPU boost")
         self.cpu_boost_row.set_model(Gtk.StringList.new(BOOST_LEVELS))
@@ -326,7 +330,10 @@ class ControlWindow(Adw.ApplicationWindow):
 
         temps = Adw.PreferencesGroup(
             title="Temperatures",
-            description="Read from the kernel sensors, not the controller",
+            description=(
+                "Read from kernel sensors; fan RPM is the controller target, "
+                "not measured tachometer speed"
+            ),
         )
         self.temp_rows: dict[str, tuple[Adw.ActionRow, Gtk.LevelBar]] = {}
         for key, title in (("cpu", "CPU"), ("gpu", "GPU"), ("storage", "NVMe")):
@@ -383,6 +390,8 @@ class ControlWindow(Adw.ApplicationWindow):
 
         self.fan_status = self._row("Status", "automatic")
         fan.add(self.fan_status)
+        self.fan_actual_row = self._row("Measured fan speed", "reading...")
+        fan.add(self.fan_actual_row)
         page.add(fan)
         return page
 
@@ -560,7 +569,20 @@ class ControlWindow(Adw.ApplicationWindow):
             else:
                 row.set_subtitle(f"{value:.1f} C")
                 bar.set_value(value)
+        self._refresh_fan_rpm()
         return True
+
+    def _refresh_fan_rpm(self) -> None:
+        refresh = getattr(self.backend, "refresh_fan_rpm", None)
+        readings = refresh() if callable(refresh) else None
+        if readings is None:
+            readings = getattr(self.state, "fan_actual_rpm", None)
+        if readings is None:
+            self.fan_actual_row.set_subtitle("not available")
+        else:
+            self.fan_actual_row.set_subtitle(
+                f"Zone 1: {readings[0]} RPM · Zone 2: {readings[1]} RPM"
+            )
 
     # -- settings -----------------------------------------------------------
     def _build_settings(self) -> Gtk.Widget:

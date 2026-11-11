@@ -66,6 +66,17 @@ class DeviceTests(unittest.TestCase):
         self.transport.set_response(0x0D, 0x81, [0x00, 0x02, 0x23])
         self.assertEqual(self.device.get_fan_target(2), 3500)
 
+    def test_get_fan_actual_rpm_reads_tach_command(self):
+        self.transport.set_response(0x0D, 0x88, [0x00, 0x02, 0x1B])
+        self.assertEqual(self.device.get_fan_actual_rpm(2), 2700)
+        self.assertEqual(self.last().command_id, 0x88)
+        self.assertEqual(self.last().arguments[:3], bytes([0x00, 0x02, 0x00]))
+
+    def test_get_fan_actual_rpm_rejects_wrong_zone_response(self):
+        self.transport.set_response(0x0D, 0x88, [0x00, 0x01, 0x1B])
+        with self.assertRaises(p.RazerError):
+            self.device.get_fan_actual_rpm(2)
+
     def test_get_power_state_reads_the_manual_flag(self):
         self.transport.set_response(0x0D, 0x82, [0x00, 0x01, 0x04, 0x01])
         self.assertEqual(self.device.get_power_state(1), (p.PowerMode.CUSTOM, True))

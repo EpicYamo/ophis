@@ -19,6 +19,7 @@ class DeviceState:
     cpu_boost: int = 2
     gpu_boost: int = 2
     fan_rpm: int = 0  # 0 = automatic
+    fan_actual_rpm: tuple[int, int] | None = None  # CPU/GPU fan tach readings
     brightness: int = 100
     logo: int = 1
     bho_enabled: bool = False
@@ -69,6 +70,20 @@ class RazerDevice:
         reply = self._call(
             p.Class.POWER, p.Cmd.FAN_GET_RPM, 0x03, bytes([0x00, zone, 0x00])
         )
+        return reply.arguments[2] * 100
+
+    def get_fan_actual_rpm(self, zone: int = 1) -> int:
+        """Read the fan tachometer in RPM (command 0x0D/0x88)."""
+        reply = self._call(
+            p.Class.POWER,
+            p.Cmd.FAN_GET_ACTUAL_RPM,
+            0x03,
+            bytes([0x00, zone, 0x00]),
+        )
+        if reply.arguments[1] != zone:
+            raise p.RazerError(
+                f"fan tach response is for zone {reply.arguments[1]}, expected {zone}"
+            )
         return reply.arguments[2] * 100
 
     def get_boost(self, which: int = 1) -> int:

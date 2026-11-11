@@ -467,6 +467,24 @@ class LightingPage(QWidget):
         """Restart a stopped animation after a reconnect."""
         self.resume_animation()
 
+    def pause_for_power_change(self) -> None:
+        """Stop writes before sleep/display-off; the selected effect is retained."""
+        self.engine.stop()
+
+    def restore_after_power_change(self) -> None:
+        """Re-select the current effect after the controller may have reset."""
+        if not getattr(self.backend, "connected", False):
+            return
+        if self._mode == "device":
+            self._select_device(self._device_name, apply=True)
+        elif self._paint_mode:
+            self._write_frame()
+        else:
+            self.engine.stop()
+            self.engine.start(self._current, self.params)
+            if self.engine.last_error:
+                self.window.toast(self.engine.last_error)
+
     # -- host settings ------------------------------------------------------
     def _clear_card(self, card: SettingsCard) -> None:
         while card.body.count():
@@ -708,8 +726,8 @@ class LightingPage(QWidget):
 
     def _write_frame(self) -> None:
         try:
-            self.backend.activate_custom_frame()
             self.backend.write_frame(self._frame)
+            self.backend.activate_custom_frame()
         except Exception as exc:
             self.window.toast(str(exc))
 

@@ -322,10 +322,14 @@ operating system changes, which is why quitting Ophis does not reset it.
   (the last keys are Del and the power button, which does have an LED).
 - The fan curve runs only while the app is open. The controller keeps the last
   speed afterwards.
+- On Linux, Ophis restores the keyboard effect after logind suspend/resume,
+  GNOME screensaver transitions, and power-profile changes. Linux fan RPM is
+  shown separately as the controller target and measured tachometer speed.
 - On Windows, host animations keep running while the app is open, even after
   you switch to another tab or hide the window to the tray. A tray-only start
-  leaves the controller alone until the window is first shown. Device effects
-  run inside the keyboard either way.
+  leaves the controller alone until the window is first shown. Ophis restores
+  the selected lighting effect after sleep, display power changes, and Windows
+  power-profile changes. Device effects run inside the keyboard either way.
 - Hardware-wave direction (`01`/`02`) is not mapped to physical left/right.
 - Logo breathing is sent, but the firmware calls it unsupported.
 - Only `1532:028C` is a target. Other Blade models advertise different feature

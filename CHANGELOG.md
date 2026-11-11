@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Linux: listen for logind sleep/resume, GNOME screensaver, and
+  power-profiles-daemon changes. Reconnect the HID backend after wake, refresh
+  the animation engine's device reference, and restore the selected effect;
+  reapply Ophis's saved power/fan settings when the active Linux power profile
+  changes.
+- Fan: read the actual CPU/GPU fan tachometers with `0x0D/0x88`, separately
+  from the setpoint register. Verified on the Blade 14 (2022): the controller
+  reported 2300/2700 RPM while `0x0D/0x81` reported 2000 RPM setpoints.
+- Windows: restore the selected keyboard effect after sleep/resume, display
+  power transitions, and Windows power-profile changes. Reopen the HID handle,
+  reapply the saved power/fan profile when the Windows power profile changes,
+  and restart the current device or host-rendered effect.
+- Windows: activate custom frames after one-shot/static host renders, avoiding
+  stale or firmware-selected lighting when a static custom effect is selected.
+
 ## [0.3.2] - 2026-10-30
 
 ### Fixed

@@ -529,6 +529,29 @@ class LightingPage(Gtk.Box):
             self._frame = animations.create(name, params).render(0.016)
             self.keyboard.set_matrix(self._frame)
 
+    def pause_for_power_change(self) -> None:
+        """Stop HID writes while the system or display is suspended."""
+        if self.engine is not None:
+            self.engine.stop()
+
+    def restore_after_power_change(self) -> None:
+        """Reconnect the animation engine to the current device and restore its effect."""
+        if not getattr(self.backend, "connected", False):
+            return
+        if self.engine is not None:
+            self.engine.device = getattr(self.backend, "device", None)
+        if self._mode == "device":
+            self._select_device(self._device_name, apply=True)
+        elif self._paint_mode:
+            self._write_frame()
+        elif self.engine is not None:
+            self.engine.start(self._current, self.params)
+            if self.engine.last_error:
+                self.window.toast(self.engine.last_error)
+        else:
+            self._frame = animations.create(self._current, self.params).render(0.016)
+            self.keyboard.set_matrix(self._frame)
+
     # -- custom settings panel ---------------------------------------------
     def _build_settings(self, name: str, params: Params) -> None:
         while self.settings_box.get_first_child() is not None:
@@ -838,8 +861,8 @@ class LightingPage(Gtk.Box):
 
     def _write_frame(self) -> None:
         try:
-            self.backend.activate_custom_frame()
             self.backend.write_frame(self._frame)
+            self.backend.activate_custom_frame()
         except Exception as exc:
             self.window.toast(str(exc))
 

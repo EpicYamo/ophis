@@ -12,9 +12,13 @@ from ophis.device import DeviceState
 class StubDevice:
     def __init__(self) -> None:
         self.calls: list[tuple[int, int | None, int | None]] = []
+        self.actual_fan_rpm = {1: 2300, 2: 2700}
 
     def set_power_mode(self, mode, cpu_boost=None, gpu_boost=None) -> None:
         self.calls.append((int(mode), cpu_boost, gpu_boost))
+
+    def get_fan_actual_rpm(self, zone: int) -> int:
+        return self.actual_fan_rpm[zone]
 
 
 def device_backend() -> DeviceBackend:
@@ -53,6 +57,12 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(int(backend.state.power_mode), int(p.PowerMode.CUSTOM))
         self.assertEqual(backend.state.cpu_boost, 2)
         self.assertEqual(backend.state.gpu_boost, 1)
+
+    def test_refresh_fan_rpm_updates_both_measured_zones(self) -> None:
+        backend = device_backend()
+
+        self.assertEqual(backend.refresh_fan_rpm(), (2300, 2700))
+        self.assertEqual(backend.state.fan_actual_rpm, (2300, 2700))
 
 
 if __name__ == "__main__":

@@ -96,6 +96,9 @@ class MockBackend:
     def activate_custom_frame(self) -> None:
         pass
 
+    def refresh_fan_rpm(self) -> None:
+        return None
+
     def set_logo(self, mode: int) -> None:
         self.state.logo = mode
 
@@ -174,6 +177,21 @@ class DeviceBackend:
                 self.state.bho_enabled, self.state.bho_threshold = self.device.get_bho()
             except p.RazerError:
                 pass
+        self.refresh_fan_rpm()
+
+    def refresh_fan_rpm(self) -> tuple[int, int] | None:
+        """Read both actual fan tachometers; leave the last good sample on failure."""
+        if not self.connected or self.device is None:
+            return None
+        try:
+            readings = (
+                self.device.get_fan_actual_rpm(1),
+                self.device.get_fan_actual_rpm(2),
+            )
+        except (OSError, p.RazerError):
+            return None
+        self.state.fan_actual_rpm = readings
+        return readings
 
     def set_power_mode(
         self,
