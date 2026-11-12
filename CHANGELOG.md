@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-12
+
 ### Fixed
 
 - Linux: listen for logind sleep/resume, GNOME screensaver, and
