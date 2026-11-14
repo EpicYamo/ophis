@@ -46,7 +46,9 @@ HOST_EFFECTS = [
     ("lightning", "Lightning"),
     ("flame", "Flame"),
     ("rain", "Rain"),
-    ("matrix", "Matrix"),
+    ("matrix_diagonal", "Matrix — Diagonal streaks"),
+    ("matrix_columns", "Matrix — Vertical columns"),
+    ("matrix_ripple", "Matrix — Ripple"),
 ]
 
 DEVICE_EFFECTS = [
@@ -294,10 +296,26 @@ class LightingPage(QWidget):
         stored = self.profile.get("lighting", {}).get("animation")
         if stored == "custom":
             return "static"
+        if stored == "matrix":
+            legacy = self._stored_values("matrix")
+            try:
+                style = max(0, min(2, int(legacy.get("style", 0))))
+            except (TypeError, ValueError):
+                style = 0
+            return ("matrix_diagonal", "matrix_columns", "matrix_ripple")[style]
         return stored if stored in animations.EFFECTS else "static"
 
     def _stored_values(self, name: str) -> dict:
         data = self.profile.get("lighting", {}).get("animations", {}).get(name, {})
+        if not data and name.startswith("matrix_"):
+            data = self.profile.get("lighting", {}).get("animations", {}).get("matrix", {})
+            data = {key: value for key, value in data.items() if key != "style"}
+            if name == "matrix_diagonal" and "speed" in data:
+                try:
+                    old_speed = max(0.1, min(2.0, float(data["speed"])))
+                    data["speed"] = 0.02 + (old_speed - 0.1) / 1.9 * 0.78
+                except (TypeError, ValueError):
+                    data.pop("speed", None)
         return data if isinstance(data, dict) else {}
 
     def _stored_device(self) -> dict:
@@ -333,6 +351,12 @@ class LightingPage(QWidget):
     def _remember(self, name: str, params: Params) -> None:
         self.profile.setdefault("lighting", {}).setdefault("animations", {})[name] = {
             "colour": list(params.colour),
+            "background_colour": list(params.background_colour),
+            "strike_colour": list(params.strike_colour),
+            "custom_colors": params.custom_colors,
+            "backlight": params.backlight,
+            "backlight_colour": list(params.backlight_colour),
+            "backlight_brightness": params.backlight_brightness,
             "speed": params.speed,
             "smooth": params.smooth,
             "angle": params.angle,
@@ -403,6 +427,10 @@ class LightingPage(QWidget):
             for key, value in saved.items():
                 if key in ("palette", "zone_colours"):
                     setattr(params, key, [tuple(item) for item in value])
+                elif key in {
+                    "colour", "background_colour", "strike_colour", "backlight_colour"
+                } and isinstance(value, (list, tuple)):
+                    setattr(params, key, tuple(value))
                 elif hasattr(params, key):
                     setattr(params, key, value)
 
@@ -528,9 +556,9 @@ class LightingPage(QWidget):
         elif setting.kind == "percent":
             actual = float(getattr(params, setting.key))
             span = setting.actual_high - setting.actual_low
-            percent = 1.0 + (actual - setting.actual_low) / span * 99.0
+            percent = setting.low + (actual - setting.actual_low) / span * (setting.high - setting.low)
             scale = QSlider(Qt.Orientation.Horizontal)
-            scale.setRange(1, 100)
+            scale.setRange(int(setting.low), int(setting.high))
             scale.setValue(round(percent))
             scale.setFixedWidth(280)
             value = QLabel(f"{int(round(percent))}%")
@@ -566,9 +594,9 @@ class LightingPage(QWidget):
             row.add_control(combo)
 
         elif setting.kind == "colour":
-            button = ColorButton(params.colour)
+            button = ColorButton(getattr(params, setting.key))
             button.colorChanged.connect(
-                lambda colour, n=name, p=params: self._on_colour(colour, n, p)
+                lambda colour, n=name, p=params, k=setting.key: self._on_colour(colour, n, p, k)
             )
             row.add_control(button)
 
@@ -623,7 +651,8 @@ class LightingPage(QWidget):
     def _on_percent(self, value: int, name: str, setting, params: Params, label: QLabel) -> None:
         label.setText(f"{value}%")
         span = setting.actual_high - setting.actual_low
-        actual = setting.actual_low + (value - 1.0) / 99.0 * span
+        fraction = (value - setting.low) / max(1.0, setting.high - setting.low)
+        actual = setting.actual_low + fraction * span
         setattr(params, setting.key, round(actual, 2))
         self._changed(name, params, restart=(name == "static"))
 
@@ -639,8 +668,8 @@ class LightingPage(QWidget):
         setattr(params, key, int(index))
         self._changed(name, params, restart=name in ("matrix", "static"))
 
-    def _on_colour(self, colour, name: str, params: Params) -> None:
-        params.colour = (colour.red(), colour.green(), colour.blue())
+    def _on_colour(self, colour, name: str, params: Params, key: str) -> None:
+        setattr(params, key, (colour.red(), colour.green(), colour.blue()))
         self._changed(name, params, restart=(name == "static"))
 
     def _on_palette_count(self, value: int, name: str, params: Params) -> None:

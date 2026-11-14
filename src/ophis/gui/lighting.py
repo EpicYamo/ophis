@@ -31,7 +31,9 @@ HOST_EFFECTS = [
     ("lightning", "Lightning"),
     ("flame", "Flame"),
     ("rain", "Rain"),
-    ("matrix", "Matrix"),
+    ("matrix_diagonal", "Matrix — Diagonal streaks"),
+    ("matrix_columns", "Matrix — Vertical columns"),
+    ("matrix_ripple", "Matrix — Ripple"),
 ]
 
 DEVICE_EFFECTS = [
@@ -417,10 +419,26 @@ class LightingPage(Gtk.Box):
         stored = self.profile.get("lighting", {}).get("animation")
         if stored == "custom":
             return "static"
+        if stored == "matrix":
+            legacy = self._stored_values("matrix")
+            try:
+                style = max(0, min(2, int(legacy.get("style", 0))))
+            except (TypeError, ValueError):
+                style = 0
+            return ("matrix_diagonal", "matrix_columns", "matrix_ripple")[style]
         return stored if stored in animations.EFFECTS else "static"
 
     def _stored_values(self, name: str) -> dict:
         data = self.profile.get("lighting", {}).get("animations", {}).get(name, {})
+        if not data and name.startswith("matrix_"):
+            data = self.profile.get("lighting", {}).get("animations", {}).get("matrix", {})
+            data = {key: value for key, value in data.items() if key != "style"}
+            if name == "matrix_diagonal" and "speed" in data:
+                try:
+                    old_speed = max(0.1, min(2.0, float(data["speed"])))
+                    data["speed"] = 0.02 + (old_speed - 0.1) / 1.9 * 0.78
+                except (TypeError, ValueError):
+                    data.pop("speed", None)
         return data if isinstance(data, dict) else {}
 
     def _stored_device(self) -> dict:
@@ -456,6 +474,12 @@ class LightingPage(Gtk.Box):
     def _remember(self, name: str, params: Params) -> None:
         self.profile.setdefault("lighting", {}).setdefault("animations", {})[name] = {
             "colour": list(params.colour),
+            "background_colour": list(params.background_colour),
+            "strike_colour": list(params.strike_colour),
+            "custom_colors": params.custom_colors,
+            "backlight": params.backlight,
+            "backlight_colour": list(params.backlight_colour),
+            "backlight_brightness": params.backlight_brightness,
             "speed": params.speed,
             "smooth": params.smooth,
             "angle": params.angle,
@@ -504,6 +528,10 @@ class LightingPage(Gtk.Box):
             for key, value in saved.items():
                 if key in ("palette", "zone_colours"):
                     setattr(params, key, [tuple(item) for item in value])
+                elif key in {
+                    "colour", "background_colour", "strike_colour", "backlight_colour"
+                } and isinstance(value, (list, tuple)):
+                    setattr(params, key, tuple(value))
                 elif hasattr(params, key):
                     setattr(params, key, value)
 
@@ -587,8 +615,10 @@ class LightingPage(Gtk.Box):
         elif setting.kind == "percent":
             actual = float(getattr(params, setting.key))
             span = setting.actual_high - setting.actual_low
-            percent = 1.0 + (actual - setting.actual_low) / span * 99.0
-            scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 100, 1)
+            percent = setting.low + (actual - setting.actual_low) / span * (setting.high - setting.low)
+            scale = Gtk.Scale.new_with_range(
+                Gtk.Orientation.HORIZONTAL, setting.low, setting.high, setting.step
+            )
             scale.set_value(round(percent))
             scale.set_size_request(280, -1)
             scale.set_draw_value(False)
@@ -625,8 +655,8 @@ class LightingPage(Gtk.Box):
         elif setting.kind == "colour":
             button = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog())
             button.set_valign(Gtk.Align.CENTER)
-            self._set_button_colour(button, params.colour)
-            button.connect("notify::rgba", self._on_colour, name, params, None)
+            self._set_button_colour(button, getattr(params, setting.key))
+            button.connect("notify::rgba", self._on_colour, name, params, setting.key)
             row.add_suffix(button)
 
         elif setting.kind == "palette":
@@ -703,7 +733,8 @@ class LightingPage(Gtk.Box):
     ) -> None:
         percent = float(scale.get_value())
         span = setting.actual_high - setting.actual_low
-        actual = setting.actual_low + (percent - 1.0) / 99.0 * span
+        fraction = (percent - setting.low) / max(1.0, setting.high - setting.low)
+        actual = setting.actual_low + fraction * span
         value_label.set_text(f"{int(percent)}%")
         setattr(params, setting.key, round(actual, 2))
         self._changed(name, params, restart=(name == "static"))
@@ -720,8 +751,8 @@ class LightingPage(Gtk.Box):
         setattr(params, key, int(combo.get_active()))
         self._changed(name, params, restart=name in ("matrix", "static"))
 
-    def _on_colour(self, button, _pspec, name: str, params: Params, _index) -> None:
-        params.colour = self._colour_of(button)
+    def _on_colour(self, button, _pspec, name: str, params: Params, key: str) -> None:
+        setattr(params, key, self._colour_of(button))
         self._changed(name, params, restart=(name == "static"))
 
     def _on_palette_count(self, scale: Gtk.Scale, name: str, params: Params) -> None:

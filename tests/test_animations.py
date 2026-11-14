@@ -79,11 +79,16 @@ class EffectTests(unittest.TestCase):
         flame = default_params("flame")
         self.assertEqual((flame.speed, flame.smooth), (5, 8))
         rain = default_params("rain")
-        self.assertAlmostEqual(rain.speed, 2.0, places=2)
+        self.assertAlmostEqual(rain.speed, 2.025, places=2)
         self.assertEqual((rain.density, rain.palette_count), (3, 1))
-        matrix = default_params("matrix")
-        self.assertAlmostEqual(matrix.speed, 1.04, places=2)
-        self.assertEqual((matrix.style, matrix.density), (0, 2))
+        diagonal = default_params("matrix_diagonal")
+        self.assertAlmostEqual(diagonal.speed, 0.293, places=2)
+        self.assertEqual(diagonal.density, 2)
+        self.assertEqual(
+            {"matrix_diagonal", "matrix_columns", "matrix_ripple"} & set(effects.EFFECTS),
+            {"matrix_diagonal", "matrix_columns", "matrix_ripple"},
+        )
+        self.assertNotIn("matrix", effects.EFFECTS)
 
     def test_every_effect_declares_settings(self):
         for name, effect in effects.EFFECTS.items():
@@ -107,8 +112,67 @@ class EffectTests(unittest.TestCase):
                 if setting.kind != "percent":
                     continue
                 self.assertLess(setting.actual_low, setting.actual_high)
-                self.assertGreaterEqual(setting.default, 1)
-                self.assertLessEqual(setting.default, 100)
+                self.assertGreaterEqual(setting.default, setting.low)
+                self.assertLessEqual(setting.default, setting.high)
+
+    def test_custom_lightning_uses_a_hue_coherent_gradient(self):
+        orange_to_red = effects.blend_hsv((255, 165, 0), (255, 0, 0), 0.5)
+        self.assertEqual(orange_to_red, (255, 82, 0))
+        green_to_blue = effects.blend_hsv((0, 255, 0), (0, 0, 255), 0.5)
+        self.assertGreater(green_to_blue[1], 200)
+        self.assertGreater(green_to_blue[2], 200)
+
+        params = default_params("lightning")
+        params.custom_colors = True
+        params.background_colour = (255, 165, 0)
+        params.strike_colour = (255, 0, 0)
+        effect = effects.create("lightning", params)
+        effect.head[0] = 1.0
+        effect.bolt_x[0] = 5.0
+        matrix = effect.render(0.0)
+        self.assertEqual(matrix[1][5], params.strike_colour)
+        self.assertTrue(
+            any(cell[0] == 255 and 0 < cell[1] < 165 and cell[2] == 0
+                for row in matrix for cell in row)
+        )
+
+    def test_rain_backlight_and_motion_smoothing(self):
+        params = default_params("rain")
+        params.backlight = True
+        params.backlight_colour = (0, 100, 200)
+        params.backlight_brightness = 10
+        effect = effects.create("rain", params)
+        effect.drop_row = [100.0] * effect.MAX_DROPS
+        effect.colour_index = [0] * effect.MAX_DROPS
+        self.assertTrue(
+            all(cell == (0, 10, 20) for row in effect.render(0.04) for cell in row)
+        )
+
+        def rendered_cells(smoothness):
+            values = default_params("rain")
+            values.speed = 4.5
+            values.smooth = smoothness
+            values.density = 1
+            rain = effects.create("rain", values)
+            rain.drop_row = [100.0] * rain.MAX_DROPS
+            rain.drop_row[0] = 0.0
+            rain.drop_x = [5.0] * rain.MAX_DROPS
+            rain.colour_index = [0] * rain.MAX_DROPS
+            frame = rain.render(0.2)
+            return sum(sum(cell) for row in frame for cell in row)
+
+        self.assertGreater(rendered_cells(100), rendered_cells(0))
+
+    def test_backlight_is_available_on_each_matrix_animation(self):
+        for name in ("matrix_diagonal", "matrix_columns", "matrix_ripple"):
+            params = default_params(name)
+            params.backlight = True
+            params.backlight_colour = (100, 40, 20)
+            params.backlight_brightness = 25
+            effect = effects.create(name, params)
+            frame = effect.render(0.0)
+            self.assert_matrix(frame)
+            self.assertIn((25, 10, 5), [cell for row in frame for cell in row])
 
     def test_unknown_effect_raises(self):
         with self.assertRaises(ValueError):

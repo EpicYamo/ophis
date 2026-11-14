@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-14
+
+### Added
+
+- Lightning can optionally use saved custom background and strike colours,
+  interpolated along the shortest hue path; disabling Custom colours preserves
+  the original blue-white effect.
+- Rain now has configurable backlight colour/brightness, a 0–100% fall-speed
+  control with a slower minimum and faster maximum, and motion smoothing to
+  reduce apparent jumps when frames are delayed.
+- Matrix diagonal streaks, vertical columns and ripples are separate effects.
+  Each supports an optional configurable backlight; diagonal streak movement
+  uses board-aware bounds and a slower speed curve.
+- Existing profiles using the combined Matrix effect are migrated to the
+  corresponding separate effect and retain their shared settings.
+
 ## [0.3.3] - 2026-11-12
 
 ### Fixed

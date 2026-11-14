@@ -9,8 +9,8 @@ implementation so the same settings produce the same look:
     wheel       reverse, speed 1-20
     lightning   speed 1-10, smoothness 1-20, strike width 1-4, 1-4 strikes
     flame       flicker speed 1-10, smoothness 1-20
-    rain        fall speed 1-10, density 1-5, 1-5 colours
-    matrix      streak speed 1-10, four styles, density 1-5, 1-3 colours
+    rain        fall speed, motion smoothness, density 1-5, 1-5 colours
+    matrix      diagonal streaks, vertical columns, and ripples
     static      horizontal/vertical zones with one colour each
 
 The reference runs at one frame per 10 ms. This engine runs at about 24 fps, so
@@ -20,6 +20,7 @@ same speed on different frame rates.
 
 from __future__ import annotations
 
+import colorsys
 import math
 import random
 from dataclasses import dataclass, field, fields
@@ -77,6 +78,12 @@ class Setting:
 @dataclass
 class Params:
     colour: Colour = (0, 120, 255)
+    background_colour: Colour = (4, 4, 14)
+    strike_colour: Colour = (210, 235, 255)
+    custom_colors: bool = False
+    backlight: bool = False
+    backlight_colour: Colour = (0, 24, 36)
+    backlight_brightness: int = 12
     speed: float = 5.0
     smooth: float = 10.0
     angle: int = 0
@@ -116,6 +123,37 @@ def blank() -> Matrix:
 def scale(colour: Colour, factor: float) -> Colour:
     factor = max(0.0, min(1.0, factor))
     return (int(colour[0] * factor), int(colour[1] * factor), int(colour[2] * factor))
+
+
+def blend_hsv(start: Colour, end: Colour, amount: float) -> Colour:
+    """Interpolate colours along the short hue path for a coherent gradient."""
+    amount = max(0.0, min(1.0, amount))
+    if amount == 0.0:
+        return start
+    if amount == 1.0:
+        return end
+    start_h, start_s, start_v = colorsys.rgb_to_hsv(*(channel / 255 for channel in start))
+    end_h, end_s, end_v = colorsys.rgb_to_hsv(*(channel / 255 for channel in end))
+    if start_s < 0.04:
+        start_h = end_h
+    if end_s < 0.04:
+        end_h = start_h
+    hue_delta = (end_h - start_h + 0.5) % 1.0 - 0.5
+    red, green, blue = colorsys.hsv_to_rgb(
+        (start_h + hue_delta * amount) % 1.0,
+        start_s + (end_s - start_s) * amount,
+        start_v + (end_v - start_v) * amount,
+    )
+    return (round(red * 255), round(green * 255), round(blue * 255))
+
+
+def _backlight_colour(params: Params) -> Colour:
+    brightness = max(0, min(100, params.backlight_brightness)) / 100
+    return scale(params.backlight_colour, brightness)
+
+
+def _blend_backlight(base: Colour, effect: Colour, amount: float) -> Colour:
+    return blend_hsv(base, effect, amount)
 
 
 def hue_colour(degrees: float) -> Colour:
@@ -299,6 +337,13 @@ class Lightning(Effect):
     name = "lightning"
     label = "Lightning"
     SETTINGS = (
+        Setting("custom_colors", "Custom colours", "switch", default=False),
+        Setting(
+            "background_colour", "Background colour", "colour", default=(4, 4, 14)
+        ),
+        Setting(
+            "strike_colour", "Strike colour", "colour", default=(210, 235, 255)
+        ),
         # Above a speed of 6 the bolt skips whole rows and stops looking like
         # lightning, so the slider is a percentage of 0.5-6.
         Setting("speed", "Speed", "percent", 1, 100, 1, 82, (), 0.5, 6.0),
@@ -353,7 +398,11 @@ class Lightning(Effect):
         for row in range(ROWS):
             for col in range(COLS):
                 value = brightness[row * COLS + col]
-                if value > 0:
+                if self.params.custom_colors:
+                    matrix[row][col] = _blend_backlight(
+                        self.params.background_colour, self.params.strike_colour, value
+                    )
+                elif value > 0:
                     level = int(value * 255)
                     matrix[row][col] = (level, level, 255)
                 else:
@@ -412,11 +461,17 @@ class Rain(Effect):
     name = "rain"
     label = "Rain"
     SETTINGS = (
-        # Above 3 the drops skip rows and read as noise; the floor goes below
-        # the old minimum of 1.
-        Setting("speed", "Fall speed", "percent", 1, 100, 1, 66, (), 0.1, 3.0),
+        # A finer floor makes the slow end genuinely slow; the ceiling is also
+        # extended without changing the 0–100 control shown to the user.
+        Setting("speed", "Fall speed", "percent", 0, 100, 1, 45, (), 0.0, 4.5),
+        Setting("smooth", "Motion smoothness", "percent", 0, 100, 1, 80, (), 0.0, 100.0),
         Setting("density", "Density (drops)", "slider", 1, 5, 1, 3),
         Setting("palette", "Colours", "palette", 1, 5, 1, 1, RAIN_PALETTE),
+        Setting("backlight", "Backlight", "switch", default=False),
+        Setting("backlight_colour", "Backlight colour", "colour", default=(0, 24, 36)),
+        Setting(
+            "backlight_brightness", "Backlight brightness", "slider", 0, 100, 1, 12
+        ),
     )
     MAX_DROPS = 20
 
@@ -428,55 +483,64 @@ class Rain(Effect):
 
     def render(self, dt: float) -> Matrix:
         step = self._step(dt)
-        speed = 0.05 + self.params.speed * 0.03
+        speed = 0.015 + self.params.speed * 0.035
         colour_count = max(1, min(5, self.params.palette_count))
         density = max(1, min(5, int(self.params.density)))
         active = min(self.MAX_DROPS, density * 3)
 
         matrix = blank()
+        intensities = [[0.0 for _ in range(COLS)] for _ in range(ROWS)]
+        pixel_colours = [[BLACK for _ in range(COLS)] for _ in range(ROWS)]
+        base = _backlight_colour(self.params) if self.params.backlight else BLACK
         for index in range(active):
             colour = self.params.palette[self.colour_index[index] % colour_count]
-            for trail in range(ROWS + 1):
-                distance = self.drop_row[index] - trail
-                if distance < -0.3 or distance > 1.8:
-                    continue
-                brightness = 1.0 if distance < 0 else 1.0 - distance / 1.8
-                col = int(round(self.drop_x[index]))
-                if not 0 <= col < COLS:
-                    continue
-                row = trail
-                if 0 <= row < ROWS:
-                    existing = matrix[row][col]
-                    candidate = scale(colour, brightness)
-                    if sum(candidate) > sum(existing):
-                        matrix[row][col] = candidate
-            self.drop_row[index] += speed * step
+            old_position = self.drop_row[index]
+            new_position = old_position + speed * step
+            travel = new_position - old_position
+            sample_count = max(
+                1, min(32, math.ceil(travel * self.params.smooth / 25.0))
+            )
+            col = int(round(self.drop_x[index]))
+            if 0 <= col < COLS:
+                for sample in range(sample_count):
+                    position = old_position + travel * (sample + 1) / sample_count
+                    for trail in range(ROWS):
+                        distance = position - trail
+                        if distance < -0.3 or distance > 1.8:
+                            continue
+                        value = 1.0 if distance < 0 else 1.0 - distance / 1.8
+                        if value > intensities[trail][col]:
+                            intensities[trail][col] = value
+                            pixel_colours[trail][col] = colour
+            self.drop_row[index] = new_position
             if self.drop_row[index] > ROWS + 2:
                 self.drop_row[index] = -float(random.randrange(5))
                 self.drop_x[index] = float(random.randrange(COLS))
                 self.colour_index[index] = random.randrange(colour_count)
+
+        for row in range(ROWS):
+            for col in range(COLS):
+                value = intensities[row][col]
+                if self.params.backlight:
+                    matrix[row][col] = _blend_backlight(base, pixel_colours[row][col], value)
+                elif value > 0:
+                    matrix[row][col] = scale(pixel_colours[row][col], value)
         return matrix
 
 
-class MatrixRain(Effect):
-    name = "matrix"
-    label = "Matrix"
+class _MatrixEffect(Effect):
+    STYLE = 0
     SETTINGS = (
         # A streak that moves faster than 2 crosses the whole board in a
         # couple of frames and reads as flicker.
         Setting("speed", "Streak speed", "percent", 1, 100, 1, 50, (), 0.1, 2.0),
-        Setting(
-            "style",
-            "Style",
-            "choice",
-            0,
-            2,
-            1,
-            0,
-            ("Diagonal streaks", "Vertical columns", "Ripple"),
-        ),
         Setting("density", "Density", "slider", 1, 5, 1, 2),
         Setting("palette", "Colours", "palette", 1, 3, 1, 1, MATRIX_PALETTE),
+        Setting("backlight", "Backlight", "switch", default=False),
+        Setting("backlight_colour", "Backlight colour", "colour", default=(0, 24, 12)),
+        Setting(
+            "backlight_brightness", "Backlight brightness", "slider", 0, 100, 1, 12
+        ),
     )
     STREAKS = 5
     RIPPLES = 3
@@ -502,21 +566,44 @@ class MatrixRain(Effect):
 
         self.reroll = 0.0
         self.active_streaks = 2
+        self._reset_streaks(initial=True)
+
+    def _streak_bounds(self, angle: float) -> tuple[float, float]:
+        projections = [
+            col * math.cos(angle) + row * math.sin(angle)
+            for row in range(ROWS)
+            for col in range(COLS)
+        ]
+        return min(projections), max(projections)
+
+    def _reset_streaks(self, initial: bool = False) -> None:
+        for index in range(self.STREAKS):
+            self.angle[index] = math.radians(random.randrange(360))
+            low, _high = self._streak_bounds(self.angle[index])
+            gap = index * (self.TAIL + 2) if initial else random.randrange(0, 8)
+            self.position[index] = low - self.TAIL - gap
+            self.streak_speed[index] = 0.6 + random.randrange(60) / 100.0
 
     def render(self, dt: float) -> Matrix:
         step = self._step(dt)
         colour_count = max(1, min(3, self.params.palette_count))
-        style = int(self.params.style)
-        speed_mul = 0.35 + self.params.speed * 0.25
+        style = self.STYLE
+        speed_mul = (
+            0.02 + self.params.speed * 0.08
+            if style == 0
+            else 0.35 + self.params.speed * 0.25
+        )
         matrix = blank()
+        intensities = [[0.0 for _ in range(COLS)] for _ in range(ROWS)]
+        pixel_colours = [[BLACK for _ in range(COLS)] for _ in range(ROWS)]
 
         def paint(row: int, col: int, colour_index: int, brightness: float) -> None:
             if brightness <= 0.01:
                 return
             colour = self.params.palette[colour_index % colour_count]
-            candidate = scale(colour, brightness)
-            if sum(candidate) >= sum(matrix[row][col]):
-                matrix[row][col] = candidate
+            if brightness >= intensities[row][col]:
+                intensities[row][col] = brightness
+                pixel_colours[row][col] = colour
 
         if style == 0:
             self.reroll += step
@@ -541,9 +628,11 @@ class MatrixRain(Effect):
                         paint(row, col, self.streak_colour[index], brightness)
             for index in range(self.active_streaks):
                 self.position[index] += self.streak_speed[index] * speed_mul * step
-                if self.position[index] > 26.0:
-                    self.position[index] = -self.TAIL
+                _low, high = self._streak_bounds(self.angle[index])
+                if self.position[index] > high + self.TAIL + 0.7:
                     self.angle[index] = math.radians(random.randrange(360))
+                    low, _high = self._streak_bounds(self.angle[index])
+                    self.position[index] = low - self.TAIL - random.randrange(0, 8)
                     self.streak_speed[index] = 0.6 + random.randrange(60) / 100.0
                     self.streak_colour[index] = random.randrange(colour_count)
 
@@ -579,7 +668,61 @@ class MatrixRain(Effect):
                     self.ripple_radius[index] = 0.0
                     self.ripple_colour[index] = random.randrange(colour_count)
 
+        if self.params.backlight:
+            base = _backlight_colour(self.params)
+            for row in range(ROWS):
+                for col in range(COLS):
+                    value = intensities[row][col]
+                    matrix[row][col] = _blend_backlight(
+                        base, pixel_colours[row][col], value
+                    )
+        else:
+            for row in range(ROWS):
+                for col in range(COLS):
+                    matrix[row][col] = scale(pixel_colours[row][col], intensities[row][col])
         return matrix
+
+
+class MatrixDiagonal(_MatrixEffect):
+    name = "matrix_diagonal"
+    label = "Matrix — Diagonal streaks"
+    STYLE = 0
+    SETTINGS = (
+        Setting("speed", "Streak speed", "percent", 0, 100, 1, 35, (), 0.02, 0.8),
+        Setting("density", "Density", "slider", 1, 5, 1, 2),
+        Setting("palette", "Colours", "palette", 1, 3, 1, 1, MATRIX_PALETTE),
+        Setting("backlight", "Backlight", "switch", default=False),
+        Setting("backlight_colour", "Backlight colour", "colour", default=(0, 24, 12)),
+        Setting("backlight_brightness", "Backlight brightness", "slider", 0, 100, 1, 12),
+    )
+
+
+class MatrixColumns(_MatrixEffect):
+    name = "matrix_columns"
+    label = "Matrix — Vertical columns"
+    STYLE = 1
+    SETTINGS = (
+        Setting("speed", "Column speed", "percent", 1, 100, 1, 50, (), 0.1, 2.0),
+        Setting("density", "Density", "slider", 1, 5, 1, 2),
+        Setting("palette", "Colours", "palette", 1, 3, 1, 1, MATRIX_PALETTE),
+        Setting("backlight", "Backlight", "switch", default=False),
+        Setting("backlight_colour", "Backlight colour", "colour", default=(0, 24, 12)),
+        Setting("backlight_brightness", "Backlight brightness", "slider", 0, 100, 1, 12),
+    )
+
+
+class MatrixRipple(_MatrixEffect):
+    name = "matrix_ripple"
+    label = "Matrix — Ripple"
+    STYLE = 2
+    SETTINGS = (
+        Setting("speed", "Ripple speed", "percent", 1, 100, 1, 50, (), 0.1, 2.0),
+        Setting("density", "Density", "slider", 1, 5, 1, 2),
+        Setting("palette", "Colours", "palette", 1, 3, 1, 1, MATRIX_PALETTE),
+        Setting("backlight", "Backlight", "switch", default=False),
+        Setting("backlight_colour", "Backlight colour", "colour", default=(0, 24, 12)),
+        Setting("backlight_brightness", "Backlight brightness", "slider", 0, 100, 1, 12),
+    )
 
 
 class Static(Effect):
@@ -631,7 +774,9 @@ EFFECTS: dict[str, type[Effect]] = {
     "lightning": Lightning,
     "flame": Flame,
     "rain": Rain,
-    "matrix": MatrixRain,
+    "matrix_diagonal": MatrixDiagonal,
+    "matrix_columns": MatrixColumns,
+    "matrix_ripple": MatrixRipple,
     "static": Static,
 }
 
@@ -640,6 +785,14 @@ ANIMATIONS = [name for name, effect in EFFECTS.items() if effect.animated]
 
 def create(name: str, params: Params | None = None) -> Effect:
     try:
+        if name == "matrix":
+            try:
+                style = int(getattr(params or Params(), "style", 0))
+            except (TypeError, ValueError):
+                style = 0
+            name = ("matrix_diagonal", "matrix_columns", "matrix_ripple")[
+                max(0, min(2, style))
+            ]
         return EFFECTS[name](params)
     except KeyError:
         raise ValueError(f"unknown animation: {name}") from None
@@ -647,6 +800,8 @@ def create(name: str, params: Params | None = None) -> Effect:
 
 def default_params(name: str) -> Params:
     """Params pre-filled with the reference defaults for one effect."""
+    if name == "matrix":
+        name = "matrix_diagonal"
     params = Params()
     effect_class = EFFECTS[name]
     for setting in effect_class.SETTINGS:
@@ -655,14 +810,15 @@ def default_params(name: str) -> Params:
         elif setting.kind == "percent":
             percent = float(setting.default)
             span = setting.actual_high - setting.actual_low
-            value = setting.actual_low + (percent - 1.0) / 99.0 * span
+            fraction = (percent - setting.low) / max(1.0, setting.high - setting.low)
+            value = setting.actual_low + fraction * span
             setattr(params, setting.key, round(value, 2))
         elif setting.kind in ("switch",):
             setattr(params, setting.key, bool(setting.default))
         elif setting.kind == "choice":
             setattr(params, setting.key, int(setting.default))
         elif setting.kind == "colour":
-            params.colour = tuple(setting.default)  # type: ignore[assignment]
+            setattr(params, setting.key, tuple(setting.default))
         elif setting.kind == "palette":
             params.palette = list(setting.choices)
             params.palette_count = int(setting.default)

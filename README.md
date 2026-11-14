@@ -45,11 +45,12 @@ acknowledged, and silently ignored.
   driven curve that runs while the app is open.
 - **Temperatures** — CPU, GPU and NVMe. Linux uses `hwmon`; Windows uses NVML
   and ACPI/storage CIM classes, without installing a sensor driver.
-- **Lighting** — nine host-rendered effects ported from
+- **Lighting** — eleven host-rendered effects ported from
   [Better RGB](https://github.com/EpicYamo/Better-RGB-for-Tongfang-ITE8291):
   breathing, wave with an adjustable angle, sparkle, wheel, lightning, flame,
-  rain, matrix (three styles) and zoned static, each with the same parameter
-  ranges and defaults as the original. A **Device effects** page lists the
+  rain, three independently listed Matrix effects and zoned static. Lightning
+  supports optional custom background/strike colours; Rain and all Matrix
+  effects have configurable backlights. A **Device effects** page lists the
   animations the controller renders itself — off, static, breathing, spectrum,
   wave, reactive and starlight — with only the colour, speed or direction each
   one accepts. Those run without CPU cost, and reactive works without input
@@ -79,7 +80,7 @@ Download `ophis_<version>_all.deb` from the
 [releases page](https://github.com/EpicYamo/ophis/releases) and install it:
 
 ```bash
-sudo apt install ./ophis_0.3.3_all.deb
+sudo apt install ./ophis_0.4.0_all.deb
 ```
 
 It installs `ophis`, `ophis-gui` and `ophis-tray`, the desktop entry, the icon
@@ -100,7 +101,7 @@ sudo udevadm trigger --action=change --subsystem-match=hidraw
 # Optional: a proper tray icon on GNOME
 sudo apt install gir1.2-ayatanaappindicator3-0.1
 
-make test        # 59 unit tests, no hardware needed
+make test        # 62 unit tests, no hardware needed
 make run         # GTK4 GUI
 make tray        # GUI in the background with a tray icon
 make preview     # GUI with a fake device
@@ -176,7 +177,9 @@ ophis set effect wave --direction right
 ophis set logo on
 ophis set bho on --threshold 80
 
-ophis animate matrix --seconds 20 --color 00FF66
+ophis animate matrix_diagonal --seconds 20
+ophis animate matrix_columns --seconds 20 --color 00FF66
+ophis animate matrix_ripple --seconds 20 --color 00FF66
 ophis animate wave --angle 45 --rainbow
 
 ophis save                        # store the current state as the profile
@@ -244,10 +247,12 @@ frame -> 6 x 0x03/0x0B (one per row, 48 colour bytes)
 | Wave | angle, speed |
 | Sparkle | speed, density |
 | Wheel | reverse, speed |
-| Lightning | speed, smoothness, strike width, concurrent strikes |
+| Lightning | custom colours, background/strike colours, speed, smoothness, strike width, concurrent strikes |
 | Flame | flicker speed, smoothness |
-| Rain | fall speed, density, colour count |
-| Matrix | streak speed, style (diagonal / columns / laser / ripple), density, colour count |
+| Rain | fall speed, motion smoothness, density, colour count, optional backlight colour/brightness |
+| Matrix — Diagonal streaks | streak speed, density, colour count, optional backlight colour/brightness |
+| Matrix — Vertical columns | column speed, density, colour count, optional backlight colour/brightness |
+| Matrix — Ripple | ripple speed, density, colour count, optional backlight colour/brightness |
 | Static | horizontal or vertical zones with one colour each, plus per-key painting |
 
 Selecting an effect builds its settings panel from the effect's own
@@ -344,7 +349,7 @@ operating system changes, which is why quitting Ophis does not reset it.
 ## Development
 
 ```bash
-make test     # 59 unit tests, no device required
+make test     # 62 unit tests, no device required
 make preview  # Linux GUI against a fake device
 ```
 
