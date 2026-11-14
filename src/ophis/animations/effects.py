@@ -79,6 +79,7 @@ class Setting:
 class Params:
     colour: Colour = (0, 120, 255)
     background_colour: Colour = (4, 4, 14)
+    background_brightness: int = 25
     strike_colour: Colour = (210, 235, 255)
     custom_colors: bool = False
     backlight: bool = False
@@ -152,6 +153,15 @@ def _backlight_colour(params: Params) -> Colour:
     return scale(params.backlight_colour, brightness)
 
 
+def _lightning_background(params: Params) -> Colour:
+    # 25% is the neutral/original level; higher values can brighten a custom
+    # background, while lower values keep it subdued beneath the strike.
+    factor = max(0, min(100, params.background_brightness)) / 25
+    return tuple(
+        min(255, round(channel * factor)) for channel in params.background_colour
+    )
+
+
 def _blend_backlight(base: Colour, effect: Colour, amount: float) -> Colour:
     return blend_hsv(base, effect, amount)
 
@@ -180,17 +190,6 @@ def hue_colour(degrees: float) -> Colour:
 
 def fill(colour: Colour) -> Matrix:
     return [[colour for _ in range(COLS)] for _ in range(ROWS)]
-
-
-def compute_prob_count(target: int, low: int, high: int) -> int:
-    roll = random.randrange(100)
-    if target >= high:
-        return high
-    if roll < 25:
-        return max(low, target - 1)
-    if roll < 75:
-        return target
-    return min(high, target + 1)
 
 
 def zone_index(value: int, total: int, zones: int) -> int:
@@ -341,6 +340,7 @@ class Lightning(Effect):
         Setting(
             "background_colour", "Background colour", "colour", default=(4, 4, 14)
         ),
+        Setting("background_brightness", "Background brightness", "slider", 0, 100, 1, 25),
         Setting(
             "strike_colour", "Strike colour", "colour", default=(210, 235, 255)
         ),
@@ -399,8 +399,9 @@ class Lightning(Effect):
             for col in range(COLS):
                 value = brightness[row * COLS + col]
                 if self.params.custom_colors:
+                    background = _lightning_background(self.params)
                     matrix[row][col] = _blend_backlight(
-                        self.params.background_colour, self.params.strike_colour, value
+                        background, self.params.strike_colour, value
                     )
                 elif value > 0:
                     level = int(value * 255)
@@ -543,16 +544,15 @@ class _MatrixEffect(Effect):
         ),
     )
     STREAKS = 5
-    RIPPLES = 3
+    RIPPLES = 6
     TAIL = 4.0
+    COLUMN_ORDER = (0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15)
 
     def __init__(self, params: Params | None = None) -> None:
         super().__init__(params)
-        self.angle = [math.radians(random.randrange(360)) for _ in range(self.STREAKS)]
-        self.position = [-6.0 - index * 8.0 for index in range(self.STREAKS)]
-        self.streak_speed = [
-            0.6 + random.randrange(60) / 100.0 for _ in range(self.STREAKS)
-        ]
+        self.angle = [math.radians(45)] * self.STREAKS
+        self.position = [0.0] * self.STREAKS
+        self.streak_speed = [1.0] * self.STREAKS
         self.streak_colour = [random.randrange(3) for _ in range(self.STREAKS)]
 
         self.col_position = [-float(random.randrange(8)) for _ in range(COLS)]
@@ -561,12 +561,13 @@ class _MatrixEffect(Effect):
 
         self.ripple_x = [float(random.randrange(COLS)) for _ in range(self.RIPPLES)]
         self.ripple_y = [float(random.randrange(ROWS)) for _ in range(self.RIPPLES)]
-        self.ripple_radius = [index * 7.0 for index in range(self.RIPPLES)]
+        self.ripple_radius = [index * 3.5 for index in range(self.RIPPLES)]
         self.ripple_colour = [random.randrange(3) for _ in range(self.RIPPLES)]
 
-        self.reroll = 0.0
-        self.active_streaks = 2
-        self._reset_streaks(initial=True)
+        initial_count = max(1, min(self.STREAKS, int(self.params.density)))
+        self.streak_enabled = [index < initial_count for index in range(self.STREAKS)]
+        self.streak_retiring = [False] * self.STREAKS
+        self._reset_streaks()
 
     def _streak_bounds(self, angle: float) -> tuple[float, float]:
         projections = [
@@ -576,13 +577,43 @@ class _MatrixEffect(Effect):
         ]
         return min(projections), max(projections)
 
-    def _reset_streaks(self, initial: bool = False) -> None:
+    def _reset_streaks(self) -> None:
+        low, _high = self._streak_bounds(math.radians(45))
         for index in range(self.STREAKS):
-            self.angle[index] = math.radians(random.randrange(360))
-            low, _high = self._streak_bounds(self.angle[index])
-            gap = index * (self.TAIL + 2) if initial else random.randrange(0, 8)
-            self.position[index] = low - self.TAIL - gap
-            self.streak_speed[index] = 0.6 + random.randrange(60) / 100.0
+            self.position[index] = low - self.TAIL - index * (self.TAIL + 2)
+
+    def _set_streak_density(self, desired: int) -> None:
+        active = sum(self.streak_enabled)
+        retiring = sum(
+            enabled and is_retiring
+            for enabled, is_retiring in zip(self.streak_enabled, self.streak_retiring)
+        )
+        running_normally = active - retiring
+        if running_normally > desired:
+            excess = running_normally - desired
+            for index in reversed(range(self.STREAKS)):
+                if self.streak_enabled[index] and not self.streak_retiring[index]:
+                    self.streak_retiring[index] = True
+                    excess -= 1
+                    if excess == 0:
+                        break
+        elif running_normally < desired:
+            for index in reversed(range(self.STREAKS)):
+                if self.streak_enabled[index] and self.streak_retiring[index]:
+                    self.streak_retiring[index] = False
+                    running_normally += 1
+                    if running_normally >= desired:
+                        break
+        if active < desired:
+            for index in range(self.STREAKS):
+                if not self.streak_enabled[index]:
+                    self.streak_enabled[index] = True
+                    self.streak_retiring[index] = False
+                    low, _high = self._streak_bounds(self.angle[index])
+                    self.position[index] = low - self.TAIL - index * (self.TAIL + 2)
+                    active += 1
+                    if active >= desired:
+                        break
 
     def render(self, dt: float) -> Matrix:
         step = self._step(dt)
@@ -606,15 +637,12 @@ class _MatrixEffect(Effect):
                 pixel_colours[row][col] = colour
 
         if style == 0:
-            self.reroll += step
-            if self.reroll >= 60:
-                self.active_streaks = compute_prob_count(
-                    int(self.params.density), 1, self.STREAKS
-                )
-                self.reroll = 0
+            desired = max(1, min(self.STREAKS, int(self.params.density)))
+            self._set_streak_density(desired)
+            active = [i for i, enabled in enumerate(self.streak_enabled) if enabled]
             for row in range(ROWS):
                 for col in range(COLS):
-                    for index in range(self.active_streaks):
+                    for index in active:
                         dir_x = math.cos(self.angle[index])
                         dir_y = math.sin(self.angle[index])
                         projection = col * dir_x + row * dir_y
@@ -626,24 +654,29 @@ class _MatrixEffect(Effect):
                         else:
                             continue
                         paint(row, col, self.streak_colour[index], brightness)
-            for index in range(self.active_streaks):
+            low, high = self._streak_bounds(math.radians(45))
+            for index in active:
                 self.position[index] += self.streak_speed[index] * speed_mul * step
-                _low, high = self._streak_bounds(self.angle[index])
                 if self.position[index] > high + self.TAIL + 0.7:
-                    self.angle[index] = math.radians(random.randrange(360))
-                    low, _high = self._streak_bounds(self.angle[index])
-                    self.position[index] = low - self.TAIL - random.randrange(0, 8)
-                    self.streak_speed[index] = 0.6 + random.randrange(60) / 100.0
-                    self.streak_colour[index] = random.randrange(colour_count)
+                    if self.streak_retiring[index]:
+                        self.streak_enabled[index] = False
+                        self.streak_retiring[index] = False
+                    else:
+                        self.position[index] = (
+                            low - self.TAIL - index * (self.TAIL + 2)
+                        )
 
         elif style == 1:
+            density = max(1, min(5, int(self.params.density)))
+            active_count = math.ceil(density * COLS / 5)
+            active_columns = self.COLUMN_ORDER[:active_count]
             for row in range(ROWS):
-                for col in range(COLS):
+                for col in active_columns:
                     delta = self.col_position[col] - row
                     if -0.3 <= delta < 4.0:
                         brightness = 1.0 if delta < 0 else 1.0 - delta / 4.0
                         paint(row, col, self.col_colour[col], brightness)
-            for col in range(COLS):
+            for col in active_columns:
                 self.col_position[col] += self.col_speed[col] * speed_mul * step
                 if self.col_position[col] > ROWS + 2:
                     self.col_position[col] = -float(random.randrange(6))
@@ -651,16 +684,17 @@ class _MatrixEffect(Effect):
                     self.col_colour[col] = random.randrange(colour_count)
 
         else:
+            ripple_count = min(self.RIPPLES, max(2, int(self.params.density) + 1))
             for row in range(ROWS):
                 for col in range(COLS):
-                    for index in range(self.RIPPLES):
+                    for index in range(ripple_count):
                         distance = math.hypot(
                             col - self.ripple_x[index], row - self.ripple_y[index]
                         )
                         ring = abs(distance - self.ripple_radius[index])
                         if ring < 1.0:
                             paint(row, col, self.ripple_colour[index], 1.0 - ring)
-            for index in range(self.RIPPLES):
+            for index in range(ripple_count):
                 self.ripple_radius[index] += speed_mul * 0.12 * step
                 if self.ripple_radius[index] > 18:
                     self.ripple_x[index] = float(random.randrange(COLS))
@@ -685,7 +719,7 @@ class _MatrixEffect(Effect):
 
 class MatrixDiagonal(_MatrixEffect):
     name = "matrix_diagonal"
-    label = "Matrix — Diagonal streaks"
+    label = "Diagonal streaks"
     STYLE = 0
     SETTINGS = (
         Setting("speed", "Streak speed", "percent", 0, 100, 1, 35, (), 0.02, 0.8),
@@ -699,7 +733,7 @@ class MatrixDiagonal(_MatrixEffect):
 
 class MatrixColumns(_MatrixEffect):
     name = "matrix_columns"
-    label = "Matrix — Vertical columns"
+    label = "Vertical columns"
     STYLE = 1
     SETTINGS = (
         Setting("speed", "Column speed", "percent", 1, 100, 1, 50, (), 0.1, 2.0),
@@ -713,7 +747,7 @@ class MatrixColumns(_MatrixEffect):
 
 class MatrixRipple(_MatrixEffect):
     name = "matrix_ripple"
-    label = "Matrix — Ripple"
+    label = "Ripple"
     STYLE = 2
     SETTINGS = (
         Setting("speed", "Ripple speed", "percent", 1, 100, 1, 50, (), 0.1, 2.0),

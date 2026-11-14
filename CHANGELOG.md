@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-14
+
+### Fixed
+
+- Lightning's custom background now has its own 0–100% brightness control,
+  defaulting to 25%; the original effect remains unchanged when custom colours
+  are off.
+- Diagonal streaks keep a consistent direction and spacing, no longer reroll
+  their count or direction mid-run, and finish their path before retiring when
+  density is lowered.
+- Vertical-column density now controls how many evenly distributed columns
+  animate; ripple density now controls the number of concurrent rings.
+- Removed the redundant “Matrix” prefix from the three effect names.
+
 ## [0.4.0] - 2026-11-14
 
 ### Added

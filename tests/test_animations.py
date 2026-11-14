@@ -136,6 +136,19 @@ class EffectTests(unittest.TestCase):
                 for row in matrix for cell in row)
         )
 
+    def test_lightning_background_brightness_only_affects_custom_colours(self):
+        params = default_params("lightning")
+        params.custom_colors = True
+        params.background_colour = (200, 40, 20)
+        params.background_brightness = 25
+        self.assertEqual(params.copy().background_brightness, 25)
+        custom = effects.create("lightning", params).render(0.0)
+        self.assertTrue(all(cell == (200, 40, 20) for row in custom for cell in row))
+
+        params.custom_colors = False
+        original = effects.create("lightning", params).render(0.0)
+        self.assertTrue(all(cell == (4, 4, 14) for row in original for cell in row))
+
     def test_rain_backlight_and_motion_smoothing(self):
         params = default_params("rain")
         params.backlight = True
@@ -173,6 +186,51 @@ class EffectTests(unittest.TestCase):
             frame = effect.render(0.0)
             self.assert_matrix(frame)
             self.assertIn((25, 10, 5), [cell for row in frame for cell in row])
+
+    def test_diagonal_streaks_keep_their_path_and_finish_when_density_drops(self):
+        params = default_params("matrix_diagonal")
+        params.speed = 0.8
+        effect = effects.create("matrix_diagonal", params)
+        angles = list(effect.angle)
+        colours = list(effect.streak_colour)
+
+        effect.params.density = 1
+        effect.render(0.04)
+        self.assertEqual(sum(effect.streak_enabled), 2)
+        self.assertEqual(sum(effect.streak_retiring), 1)
+
+        for _ in range(400):
+            effect.render(0.04)
+        self.assertEqual(effect.angle, angles)
+        self.assertEqual(effect.streak_colour, colours)
+        self.assertEqual(sum(effect.streak_enabled), 1)
+        self.assertEqual(sum(effect.streak_retiring), 0)
+
+    def test_vertical_column_density_selects_more_columns(self):
+        def lit_columns(density):
+            params = default_params("matrix_columns")
+            params.density = density
+            effect = effects.create("matrix_columns", params)
+            effect.col_position = [1.0] * COLS
+            frame = effect.render(0.0)
+            return sum(any(frame[row][col] != effects.BLACK for row in range(ROWS))
+                       for col in range(COLS))
+
+        self.assertEqual(lit_columns(1), 4)
+        self.assertEqual(lit_columns(5), COLS)
+
+    def test_ripple_density_increases_simultaneous_ripples(self):
+        def lit_keys(density):
+            params = default_params("matrix_ripple")
+            params.density = density
+            effect = effects.create("matrix_ripple", params)
+            effect.ripple_x = [0.0] * effect.RIPPLES
+            effect.ripple_y = [0.0] * effect.RIPPLES
+            effect.ripple_radius = [float(index) for index in range(effect.RIPPLES)]
+            frame = effect.render(0.0)
+            return sum(cell != effects.BLACK for row in frame for cell in row)
+
+        self.assertGreater(lit_keys(5), lit_keys(1))
 
     def test_unknown_effect_raises(self):
         with self.assertRaises(ValueError):

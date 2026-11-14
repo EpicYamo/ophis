@@ -31,9 +31,9 @@ HOST_EFFECTS = [
     ("lightning", "Lightning"),
     ("flame", "Flame"),
     ("rain", "Rain"),
-    ("matrix_diagonal", "Matrix — Diagonal streaks"),
-    ("matrix_columns", "Matrix — Vertical columns"),
-    ("matrix_ripple", "Matrix — Ripple"),
+    ("matrix_diagonal", "Diagonal streaks"),
+    ("matrix_columns", "Vertical columns"),
+    ("matrix_ripple", "Ripple"),
 ]
 
 DEVICE_EFFECTS = [
@@ -475,6 +475,7 @@ class LightingPage(Gtk.Box):
         self.profile.setdefault("lighting", {}).setdefault("animations", {})[name] = {
             "colour": list(params.colour),
             "background_colour": list(params.background_colour),
+            "background_brightness": params.background_brightness,
             "strike_colour": list(params.strike_colour),
             "custom_colors": params.custom_colors,
             "backlight": params.backlight,

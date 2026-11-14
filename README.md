@@ -48,7 +48,7 @@ acknowledged, and silently ignored.
 - **Lighting** — eleven host-rendered effects ported from
   [Better RGB](https://github.com/EpicYamo/Better-RGB-for-Tongfang-ITE8291):
   breathing, wave with an adjustable angle, sparkle, wheel, lightning, flame,
-  rain, three independently listed Matrix effects and zoned static. Lightning
+  rain, three separately listed effects and zoned static. Lightning
   supports optional custom background/strike colours; Rain and all Matrix
   effects have configurable backlights. A **Device effects** page lists the
   animations the controller renders itself — off, static, breathing, spectrum,
@@ -80,7 +80,7 @@ Download `ophis_<version>_all.deb` from the
 [releases page](https://github.com/EpicYamo/ophis/releases) and install it:
 
 ```bash
-sudo apt install ./ophis_0.4.0_all.deb
+sudo apt install ./ophis_0.4.1_all.deb
 ```
 
 It installs `ophis`, `ophis-gui` and `ophis-tray`, the desktop entry, the icon
@@ -101,7 +101,7 @@ sudo udevadm trigger --action=change --subsystem-match=hidraw
 # Optional: a proper tray icon on GNOME
 sudo apt install gir1.2-ayatanaappindicator3-0.1
 
-make test        # 62 unit tests, no hardware needed
+make test        # 66 unit tests, no hardware needed
 make run         # GTK4 GUI
 make tray        # GUI in the background with a tray icon
 make preview     # GUI with a fake device
@@ -178,8 +178,8 @@ ophis set logo on
 ophis set bho on --threshold 80
 
 ophis animate matrix_diagonal --seconds 20
-ophis animate matrix_columns --seconds 20 --color 00FF66
-ophis animate matrix_ripple --seconds 20 --color 00FF66
+ophis animate matrix_columns --seconds 20
+ophis animate matrix_ripple --seconds 20
 ophis animate wave --angle 45 --rainbow
 
 ophis save                        # store the current state as the profile
@@ -250,9 +250,9 @@ frame -> 6 x 0x03/0x0B (one per row, 48 colour bytes)
 | Lightning | custom colours, background/strike colours, speed, smoothness, strike width, concurrent strikes |
 | Flame | flicker speed, smoothness |
 | Rain | fall speed, motion smoothness, density, colour count, optional backlight colour/brightness |
-| Matrix — Diagonal streaks | streak speed, density, colour count, optional backlight colour/brightness |
-| Matrix — Vertical columns | column speed, density, colour count, optional backlight colour/brightness |
-| Matrix — Ripple | ripple speed, density, colour count, optional backlight colour/brightness |
+| Diagonal streaks | streak speed, density, colour count, optional backlight colour/brightness |
+| Vertical columns | column speed, density (active column count), colour count, optional backlight colour/brightness |
+| Ripple | ripple speed, density (simultaneous ripple count), colour count, optional backlight colour/brightness |
 | Static | horizontal or vertical zones with one colour each, plus per-key painting |
 
 Selecting an effect builds its settings panel from the effect's own
@@ -349,7 +349,7 @@ operating system changes, which is why quitting Ophis does not reset it.
 ## Development
 
 ```bash
-make test     # 62 unit tests, no device required
+make test     # 66 unit tests, no device required
 make preview  # Linux GUI against a fake device
 ```
 
