@@ -69,19 +69,18 @@ class Setting:
     step: int = 1
     default: Any = 0
     choices: tuple[str, ...] = ()
-    # For "percent": the UI shows 1..100 and the stored value is scaled into
-    # this range. Used where the raw number is meaningless to a human.
+    # For "percent": the UI shows low..high and the stored value is scaled
+    # into this range. Used where the raw number is meaningless to a human.
     actual_low: float = 0.0
     actual_high: float = 1.0
+    visible_when: str | None = None
 
 
 @dataclass
 class Params:
     colour: Colour = (0, 120, 255)
-    background_colour: Colour = (4, 4, 14)
-    background_brightness: int = 25
     strike_colour: Colour = (210, 235, 255)
-    custom_colors: bool = False
+    custom_mode: bool = False
     backlight: bool = False
     backlight_colour: Colour = (0, 24, 36)
     backlight_brightness: int = 12
@@ -151,15 +150,6 @@ def blend_hsv(start: Colour, end: Colour, amount: float) -> Colour:
 def _backlight_colour(params: Params) -> Colour:
     brightness = max(0, min(100, params.backlight_brightness)) / 100
     return scale(params.backlight_colour, brightness)
-
-
-def _lightning_background(params: Params) -> Colour:
-    # 25% is the neutral/original level; higher values can brighten a custom
-    # background, while lower values keep it subdued beneath the strike.
-    factor = max(0, min(100, params.background_brightness)) / 25
-    return tuple(
-        min(255, round(channel * factor)) for channel in params.background_colour
-    )
 
 
 def _blend_backlight(base: Colour, effect: Colour, amount: float) -> Colour:
@@ -336,13 +326,30 @@ class Lightning(Effect):
     name = "lightning"
     label = "Lightning"
     SETTINGS = (
-        Setting("custom_colors", "Custom colours", "switch", default=False),
+        Setting("custom_mode", "Custom mode", "switch", default=False),
         Setting(
-            "background_colour", "Background colour", "colour", default=(4, 4, 14)
+            "backlight_colour",
+            "Backlight colour",
+            "colour",
+            default=(4, 4, 14),
+            visible_when="custom_mode",
         ),
-        Setting("background_brightness", "Background brightness", "slider", 0, 100, 1, 25),
         Setting(
-            "strike_colour", "Strike colour", "colour", default=(210, 235, 255)
+            "backlight_brightness",
+            "Backlight brightness",
+            "slider",
+            0,
+            100,
+            1,
+            5,
+            visible_when="custom_mode",
+        ),
+        Setting(
+            "strike_colour",
+            "Strike colour",
+            "colour",
+            default=(210, 235, 255),
+            visible_when="custom_mode",
         ),
         # Above a speed of 6 the bolt skips whole rows and stops looking like
         # lightning, so the slider is a percentage of 0.5-6.
@@ -398,10 +405,9 @@ class Lightning(Effect):
         for row in range(ROWS):
             for col in range(COLS):
                 value = brightness[row * COLS + col]
-                if self.params.custom_colors:
-                    background = _lightning_background(self.params)
+                if self.params.custom_mode:
                     matrix[row][col] = _blend_backlight(
-                        background, self.params.strike_colour, value
+                        _backlight_colour(self.params), self.params.strike_colour, value
                     )
                 elif value > 0:
                     level = int(value * 255)
@@ -550,7 +556,7 @@ class _MatrixEffect(Effect):
 
     def __init__(self, params: Params | None = None) -> None:
         super().__init__(params)
-        self.angle = [math.radians(45)] * self.STREAKS
+        self.angle = [0.0] * self.STREAKS
         self.position = [0.0] * self.STREAKS
         self.streak_speed = [1.0] * self.STREAKS
         self.streak_colour = [random.randrange(3) for _ in range(self.STREAKS)]
@@ -578,8 +584,9 @@ class _MatrixEffect(Effect):
         return min(projections), max(projections)
 
     def _reset_streaks(self) -> None:
-        low, _high = self._streak_bounds(math.radians(45))
         for index in range(self.STREAKS):
+            self.angle[index] = math.radians(random.randrange(360))
+            low, _high = self._streak_bounds(self.angle[index])
             self.position[index] = low - self.TAIL - index * (self.TAIL + 2)
 
     def _set_streak_density(self, desired: int) -> None:
@@ -654,17 +661,20 @@ class _MatrixEffect(Effect):
                         else:
                             continue
                         paint(row, col, self.streak_colour[index], brightness)
-            low, high = self._streak_bounds(math.radians(45))
             for index in active:
                 self.position[index] += self.streak_speed[index] * speed_mul * step
+                _low, high = self._streak_bounds(self.angle[index])
                 if self.position[index] > high + self.TAIL + 0.7:
                     if self.streak_retiring[index]:
                         self.streak_enabled[index] = False
                         self.streak_retiring[index] = False
                     else:
+                        self.angle[index] = math.radians(random.randrange(360))
+                        low, _high = self._streak_bounds(self.angle[index])
                         self.position[index] = (
                             low - self.TAIL - index * (self.TAIL + 2)
                         )
+                        self.streak_colour[index] = random.randrange(colour_count)
 
         elif style == 1:
             density = max(1, min(5, int(self.params.density)))
@@ -723,7 +733,7 @@ class MatrixDiagonal(_MatrixEffect):
     STYLE = 0
     SETTINGS = (
         Setting("speed", "Streak speed", "percent", 0, 100, 1, 35, (), 0.02, 0.8),
-        Setting("density", "Density", "slider", 1, 5, 1, 2),
+        Setting("density", "Concurrent streaks", "slider", 1, 5, 1, 2),
         Setting("palette", "Colours", "palette", 1, 3, 1, 1, MATRIX_PALETTE),
         Setting("backlight", "Backlight", "switch", default=False),
         Setting("backlight_colour", "Backlight colour", "colour", default=(0, 24, 12)),

@@ -73,6 +73,8 @@ class EffectTests(unittest.TestCase):
         self.assertEqual(
             (lightning.smooth, lightning.width, lightning.concurrent), (10, 2, 1)
         )
+        self.assertFalse(lightning.custom_mode)
+        self.assertEqual(lightning.backlight_brightness, 5)
         wheel = default_params("wheel")
         self.assertFalse(wheel.reverse)
         self.assertAlmostEqual(wheel.speed, 3.87, places=2)
@@ -93,11 +95,14 @@ class EffectTests(unittest.TestCase):
     def test_every_effect_declares_settings(self):
         for name, effect in effects.EFFECTS.items():
             self.assertTrue(effect.SETTINGS, name)
+            params = default_params(name)
             for setting in effect.SETTINGS:
                 self.assertIn(
                     setting.kind,
                     ("slider", "percent", "switch", "choice", "colour", "palette", "zone_colours"),
                 )
+                if setting.visible_when:
+                    self.assertIn(setting.visible_when, vars(params))
 
     def test_animation_speeds_respect_their_ceilings(self):
         self.assertLessEqual(default_params("lightning").speed, 6.0)
@@ -123,8 +128,9 @@ class EffectTests(unittest.TestCase):
         self.assertGreater(green_to_blue[2], 200)
 
         params = default_params("lightning")
-        params.custom_colors = True
-        params.background_colour = (255, 165, 0)
+        params.custom_mode = True
+        params.backlight_colour = (255, 165, 0)
+        params.backlight_brightness = 100
         params.strike_colour = (255, 0, 0)
         effect = effects.create("lightning", params)
         effect.head[0] = 1.0
@@ -136,16 +142,16 @@ class EffectTests(unittest.TestCase):
                 for row in matrix for cell in row)
         )
 
-    def test_lightning_background_brightness_only_affects_custom_colours(self):
+    def test_lightning_backlight_brightness_matches_other_effects(self):
         params = default_params("lightning")
-        params.custom_colors = True
-        params.background_colour = (200, 40, 20)
-        params.background_brightness = 25
-        self.assertEqual(params.copy().background_brightness, 25)
+        params.custom_mode = True
+        params.backlight_colour = (200, 40, 20)
+        params.backlight_brightness = 100
+        self.assertEqual(params.copy().backlight_brightness, 100)
         custom = effects.create("lightning", params).render(0.0)
         self.assertTrue(all(cell == (200, 40, 20) for row in custom for cell in row))
 
-        params.custom_colors = False
+        params.custom_mode = False
         original = effects.create("lightning", params).render(0.0)
         self.assertTrue(all(cell == (4, 4, 14) for row in original for cell in row))
 
@@ -192,17 +198,17 @@ class EffectTests(unittest.TestCase):
         params.speed = 0.8
         effect = effects.create("matrix_diagonal", params)
         angles = list(effect.angle)
-        colours = list(effect.streak_colour)
 
         effect.params.density = 1
         effect.render(0.04)
         self.assertEqual(sum(effect.streak_enabled), 2)
         self.assertEqual(sum(effect.streak_retiring), 1)
+        for _ in range(5):
+            effect.render(0.04)
+        self.assertEqual(effect.angle, angles)
 
         for _ in range(400):
             effect.render(0.04)
-        self.assertEqual(effect.angle, angles)
-        self.assertEqual(effect.streak_colour, colours)
         self.assertEqual(sum(effect.streak_enabled), 1)
         self.assertEqual(sum(effect.streak_retiring), 0)
 

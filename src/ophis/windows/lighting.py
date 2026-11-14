@@ -102,6 +102,7 @@ class LightingPage(QWidget):
         self._frame = animations.blank()
         self._paint_mode = False
         self._settings_widgets: dict[str, QWidget] = {}
+        self._conditional_settings: dict[str, list[QWidget]] = {}
         self._logo_healed = False
         self._current = "static"
         self._device_values = self._stored_device()
@@ -316,6 +317,19 @@ class LightingPage(QWidget):
                     data["speed"] = 0.02 + (old_speed - 0.1) / 1.9 * 0.78
                 except (TypeError, ValueError):
                     data.pop("speed", None)
+        if name == "lightning" and isinstance(data, dict):
+            data = dict(data)
+            if "custom_mode" not in data and "custom_colors" in data:
+                data["custom_mode"] = data["custom_colors"]
+                if "background_colour" in data:
+                    data["backlight_colour"] = data["background_colour"]
+            if "background_brightness" in data:
+                try:
+                    data["backlight_brightness"] = max(
+                        0, min(100, round(float(data["background_brightness"]) * 4))
+                    )
+                except (TypeError, ValueError):
+                    data["backlight_brightness"] = 5
         return data if isinstance(data, dict) else {}
 
     def _stored_device(self) -> dict:
@@ -351,10 +365,8 @@ class LightingPage(QWidget):
     def _remember(self, name: str, params: Params) -> None:
         self.profile.setdefault("lighting", {}).setdefault("animations", {})[name] = {
             "colour": list(params.colour),
-            "background_colour": list(params.background_colour),
-            "background_brightness": params.background_brightness,
             "strike_colour": list(params.strike_colour),
-            "custom_colors": params.custom_colors,
+            "custom_mode": params.custom_mode,
             "backlight": params.backlight,
             "backlight_colour": list(params.backlight_colour),
             "backlight_brightness": params.backlight_brightness,
@@ -429,7 +441,7 @@ class LightingPage(QWidget):
                 if key in ("palette", "zone_colours"):
                     setattr(params, key, [tuple(item) for item in value])
                 elif key in {
-                    "colour", "background_colour", "strike_colour", "backlight_colour"
+                    "colour", "strike_colour", "backlight_colour"
                 } and isinstance(value, (list, tuple)):
                     setattr(params, key, tuple(value))
                 elif hasattr(params, key):
@@ -528,9 +540,14 @@ class LightingPage(QWidget):
     def _build_settings(self, name: str, params: Params) -> None:
         self._clear_card(self.settings_card)
         self._settings_widgets.clear()
+        self._conditional_settings.clear()
         self.settings_title.setText(animations.EFFECTS[name].label)
         for setting in animations.EFFECTS[name].SETTINGS:
-            self.settings_card.add_row(self._setting_row(name, setting, params))
+            row = self._setting_row(name, setting, params)
+            if setting.visible_when:
+                self._conditional_settings.setdefault(setting.visible_when, []).append(row)
+                row.setVisible(bool(getattr(params, setting.visible_when)))
+            self.settings_card.add_row(row)
 
     def _setting_row(self, name: str, setting, params: Params) -> SettingRow:
         row = SettingRow(setting.label)
@@ -659,6 +676,8 @@ class LightingPage(QWidget):
 
     def _on_switch(self, checked: bool, name: str, key: str, params: Params) -> None:
         setattr(params, key, bool(checked))
+        for row in self._conditional_settings.get(key, ()):
+            row.setVisible(bool(checked))
         if key == "paint":
             self._remember(name, params)
             self._apply_paint_mode(name, params)

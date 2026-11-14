@@ -13,10 +13,10 @@ application written for an ITE8291 keyboard. The maths is ported directly:
 | Wave | angle 0–359° (0), speed 0.5–12 (percentage) |
 | Sparkle | speed 1–10 (5), density 3–20 keys (8) |
 | Wheel | reverse (off), speed 0.5–12 (percentage) |
-| Lightning | custom colours (off), background colour and brightness (25%), strike colour, speed 0.5–6 (percentage), smoothness 1–20 (10), strike width 1–4 (2), concurrent strikes 1–4 (1) |
+| Lightning | Custom mode (off), backlight colour and brightness 0–100% (5%), strike colour, speed 0.5–6 (percentage), smoothness 1–20 (10), strike width 1–4 (2), concurrent strikes 1–4 (1) |
 | Flame | flicker speed 1–10 (5), smoothness 1–20 (8) |
 | Rain | fall speed 0–4.5 (percentage, default 2.025), motion smoothness 0–100% (80%), density 1–5 (3), colour count 1–5 (1), optional backlight colour and brightness |
-| Diagonal streaks | streak speed 0.02–0.8 (percentage), density 1–5 (2), colour count 1–3 (1), optional backlight colour and brightness |
+| Diagonal streaks | streak speed 0.02–0.8 (percentage), concurrent streaks 1–5 (2), colour count 1–3 (1), optional backlight colour and brightness |
 | Vertical columns | column speed 0.1–2 (percentage), density 1–5 (2; 4–16 columns), colour count 1–3 (1), optional backlight colour and brightness |
 | Ripple | ripple speed 0.1–2 (percentage), density 1–5 (2; 3–6 ripples), colour count 1–3 (1), optional backlight colour and brightness |
 | Static | horizontal or vertical zones, 1–6 zones with one colour each, plus per-key paint |
@@ -33,9 +33,9 @@ Each effect declares its controls as `SETTINGS` on the class, and the window
 builds the panel from that declaration. Adding a parameter to an effect is one
 line; there is no separate UI code to keep in sync.
 
-Lightning's background-brightness slider treats 25% as the neutral level: at
-that value the selected background colour is unchanged. Lower values dim it;
-higher values brighten it, clamped at the maximum RGB channel value.
+Lightning's backlight brightness uses the same 0–100% linear scale as Rain and
+the other Matrix-derived effects. Its colour and brightness controls remain
+hidden until Custom mode is enabled.
 
 ## Reference behaviour that is reproduced
 
@@ -49,7 +49,7 @@ higher values brighten it, clamped at the maximum RGB channel value.
 - **Wheel** uses the angle from the matrix centre, and reverse flips the
   rotation direction rather than the colours.
 - **Lightning** keeps the original blue-white bolt and near-black background
-  unless Custom colours is enabled. In custom mode it interpolates the
+  unless Custom mode is enabled. In custom mode it interpolates the
   background-to-strike gradient along the shortest HSV hue path, so related
   colours blend naturally and unrelated colours still transition smoothly.
 - **Flame** integrates a heat value per cell towards a row-biased random target

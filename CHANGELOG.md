@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-14
+
+### Changed
+
+- Lightning's Custom mode now reveals backlight colour/brightness and strike
+  colour only while enabled. Its backlight slider uses the same linear 0–100%
+  scale and naming as the other host effects, with a 5% default.
+- Diagonal streaks once again use randomized directions and colours, but only
+  choose a new path after the current streak has fully left the board. The
+  density control is labelled Concurrent streaks and selects 1–5 parallel
+  streak animations without worker threads.
+
 ## [0.4.1] - 2026-11-14
 
 ### Fixed

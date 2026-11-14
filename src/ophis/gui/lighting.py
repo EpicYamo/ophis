@@ -89,6 +89,7 @@ class LightingPage(Gtk.Box):
         self._paint_mode = False
         self._custom_save = 0
         self._settings_widgets: dict[str, Gtk.Widget] = {}
+        self._conditional_settings: dict[str, list[Gtk.Widget]] = {}
         self._logo_healed = False
         self._current = "static"
         self._device_values = self._stored_device()
@@ -439,6 +440,19 @@ class LightingPage(Gtk.Box):
                     data["speed"] = 0.02 + (old_speed - 0.1) / 1.9 * 0.78
                 except (TypeError, ValueError):
                     data.pop("speed", None)
+        if name == "lightning" and isinstance(data, dict):
+            data = dict(data)
+            if "custom_mode" not in data and "custom_colors" in data:
+                data["custom_mode"] = data["custom_colors"]
+                if "background_colour" in data:
+                    data["backlight_colour"] = data["background_colour"]
+            if "background_brightness" in data:
+                try:
+                    data["backlight_brightness"] = max(
+                        0, min(100, round(float(data["background_brightness"]) * 4))
+                    )
+                except (TypeError, ValueError):
+                    data["backlight_brightness"] = 5
         return data if isinstance(data, dict) else {}
 
     def _stored_device(self) -> dict:
@@ -474,10 +488,8 @@ class LightingPage(Gtk.Box):
     def _remember(self, name: str, params: Params) -> None:
         self.profile.setdefault("lighting", {}).setdefault("animations", {})[name] = {
             "colour": list(params.colour),
-            "background_colour": list(params.background_colour),
-            "background_brightness": params.background_brightness,
             "strike_colour": list(params.strike_colour),
-            "custom_colors": params.custom_colors,
+            "custom_mode": params.custom_mode,
             "backlight": params.backlight,
             "backlight_colour": list(params.backlight_colour),
             "backlight_brightness": params.backlight_brightness,
@@ -530,7 +542,7 @@ class LightingPage(Gtk.Box):
                 if key in ("palette", "zone_colours"):
                     setattr(params, key, [tuple(item) for item in value])
                 elif key in {
-                    "colour", "background_colour", "strike_colour", "backlight_colour"
+                    "colour", "strike_colour", "backlight_colour"
                 } and isinstance(value, (list, tuple)):
                     setattr(params, key, tuple(value))
                 elif hasattr(params, key):
@@ -590,10 +602,15 @@ class LightingPage(Gtk.Box):
         while self.settings_box.get_first_child() is not None:
             self.settings_box.remove(self.settings_box.get_first_child())
         self._settings_widgets.clear()
+        self._conditional_settings.clear()
 
         self.settings_title.set_text(animations.EFFECTS[name].label)
         for setting in animations.EFFECTS[name].SETTINGS:
-            self.settings_box.append(self._setting_row(name, setting, params))
+            row = self._setting_row(name, setting, params)
+            if setting.visible_when:
+                self._conditional_settings.setdefault(setting.visible_when, []).append(row)
+                row.set_visible(bool(getattr(params, setting.visible_when)))
+            self.settings_box.append(row)
 
     def _setting_row(self, name: str, setting, params: Params) -> Gtk.Widget:
         row = Adw.ActionRow(title=setting.label)
@@ -741,7 +758,10 @@ class LightingPage(Gtk.Box):
         self._changed(name, params, restart=(name == "static"))
 
     def _on_switch(self, switch: Gtk.Switch, _param, name: str, key: str, params: Params) -> None:
-        setattr(params, key, bool(switch.get_active()))
+        active = bool(switch.get_active())
+        setattr(params, key, active)
+        for row in self._conditional_settings.get(key, ()):
+            row.set_visible(active)
         if key == "paint":
             self._remember(name, params)
             self._apply_paint_mode(name, params)

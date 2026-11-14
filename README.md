@@ -49,7 +49,7 @@ acknowledged, and silently ignored.
   [Better RGB](https://github.com/EpicYamo/Better-RGB-for-Tongfang-ITE8291):
   breathing, wave with an adjustable angle, sparkle, wheel, lightning, flame,
   rain, three separately listed effects and zoned static. Lightning
-  supports optional custom background/strike colours; Rain and all Matrix
+  has a Custom mode with optional backlight/strike colours; Rain and all Matrix
   effects have configurable backlights. A **Device effects** page lists the
   animations the controller renders itself — off, static, breathing, spectrum,
   wave, reactive and starlight — with only the colour, speed or direction each
@@ -80,7 +80,7 @@ Download `ophis_<version>_all.deb` from the
 [releases page](https://github.com/EpicYamo/ophis/releases) and install it:
 
 ```bash
-sudo apt install ./ophis_0.4.1_all.deb
+sudo apt install ./ophis_0.4.2_all.deb
 ```
 
 It installs `ophis`, `ophis-gui` and `ophis-tray`, the desktop entry, the icon
@@ -247,10 +247,10 @@ frame -> 6 x 0x03/0x0B (one per row, 48 colour bytes)
 | Wave | angle, speed |
 | Sparkle | speed, density |
 | Wheel | reverse, speed |
-| Lightning | custom colours, background/strike colours, speed, smoothness, strike width, concurrent strikes |
+| Lightning | Custom mode, backlight colour/brightness, strike colour, speed, smoothness, strike width, concurrent strikes |
 | Flame | flicker speed, smoothness |
 | Rain | fall speed, motion smoothness, density, colour count, optional backlight colour/brightness |
-| Diagonal streaks | streak speed, density, colour count, optional backlight colour/brightness |
+| Diagonal streaks | streak speed, concurrent streaks (1–5), colour count, optional backlight colour/brightness |
 | Vertical columns | column speed, density (active column count), colour count, optional backlight colour/brightness |
 | Ripple | ripple speed, density (simultaneous ripple count), colour count, optional backlight colour/brightness |
 | Static | horizontal or vertical zones with one colour each, plus per-key painting |
